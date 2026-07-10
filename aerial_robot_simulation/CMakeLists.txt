@@ -5,6 +5,12 @@ project(aerial_robot_simulation)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)")
+  set(BUILD_GAZEBO_SIM OFF)
+else()
+  set(BUILD_GAZEBO_SIM ON)
+endif()
+
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
@@ -22,18 +28,21 @@ find_package(pluginlib REQUIRED)
 find_package(urdf REQUIRED)
 find_package(urdfdom_headers REQUIRED)
 find_package(ignition-math6 REQUIRED)
-find_package(ignition-cmake2 REQUIRED)
-find_package(ignition-gazebo6 REQUIRED)
-find_package(ignition-plugin1 REQUIRED)
 find_package(tinyxml2_vendor REQUIRED)
 find_package(TinyXML2 REQUIRED)
 # find_package(ros_gz_sim REQUIRED)
-find_package(gz_ros2_control REQUIRED)
 find_package(ros2_control REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
 find_package(controller_manager REQUIRED)
 
-find_package(ignition-plugin1 REQUIRED)
+if(BUILD_GAZEBO_SIM)
+  find_package(ignition-cmake2 REQUIRED)
+  find_package(ignition-gazebo6 REQUIRED)
+  find_package(ignition-plugin1 REQUIRED)
+  find_package(gz_ros2_control REQUIRED)
+else()
+  message(STATUS "Building aerial_robot_simulation without Gazebo support on ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
 
 add_definitions(-DSIMULATION)
 
@@ -75,66 +84,75 @@ target_link_libraries(spinal_interface
   rotor_handle_lib
 )
 
-add_library(aerial_robot_hw_sim SHARED
-  src/aerial_robot_hw_sim.cpp)
-ament_target_dependencies(aerial_robot_hw_sim
-  rclcpp
-  rclcpp_lifecycle
-  hardware_interface
-  pluginlib
-  nav_msgs
-  geometry_msgs
-  ignition-math6
-  gz_ros2_control
-  ignition-gazebo6
-)
-target_link_libraries(aerial_robot_hw_sim
-  spinal_interface
-)
-pluginlib_export_plugin_description_file(
+if(BUILD_GAZEBO_SIM)
+  add_library(aerial_robot_hw_sim SHARED
+    src/aerial_robot_hw_sim.cpp)
+  ament_target_dependencies(aerial_robot_hw_sim
+    rclcpp
+    rclcpp_lifecycle
+    hardware_interface
+    pluginlib
+    nav_msgs
+    geometry_msgs
+    ignition-math6
+    gz_ros2_control
+    ignition-gazebo6
+  )
+  target_link_libraries(aerial_robot_hw_sim
+    spinal_interface
+  )
+
+  add_library(simulation_attitude_controller SHARED
+    src/simulation_attitude_controller.cpp
+  )
+  ament_target_dependencies(simulation_attitude_controller
+    rclcpp
+    rclcpp_lifecycle
+    hardware_interface
+    pluginlib
+    nav_msgs
+    geometry_msgs
+    gz_ros2_control
+    ignition-gazebo6
+    controller_interface
+    spinal
+  )
+  target_link_libraries(simulation_attitude_controller
+    spinal_interface
+    spinal::spinal_flight_control
+  )
+
+  pluginlib_export_plugin_description_file(
     gz_ros2_control
     aerial_robot_hw_sim_plugins.xml
-)
+  )
 
-add_library(simulation_attitude_controller SHARED
-  src/simulation_attitude_controller.cpp
-)
-ament_target_dependencies(simulation_attitude_controller
-  rclcpp
-  rclcpp_lifecycle
-  hardware_interface
-  pluginlib
-  nav_msgs
-  geometry_msgs
-  gz_ros2_control
-  ignition-gazebo6
-  controller_interface
-  spinal
-)
-target_link_libraries(simulation_attitude_controller
-  spinal_interface
-  spinal::spinal_flight_control
-)
+  pluginlib_export_plugin_description_file(
+    controller_interface
+    flight_controllers_plugins.xml
+  )
+endif()
 
 add_executable(sim_param_server src/sim_param_server.cpp)
 ament_target_dependencies(sim_param_server
   rclcpp
 )
 
-
-pluginlib_export_plugin_description_file(
-  gz_ros2_control
-  aerial_robot_hw_sim_plugins.xml
+set(PROJECT_TARGETS
+  rotor_handle_lib
+  spinal_interface
+  sim_param_server
 )
 
-pluginlib_export_plugin_description_file(
-  controller_interface
-  flight_controllers_plugins.xml
-)
-
+if(BUILD_GAZEBO_SIM)
+  list(APPEND PROJECT_TARGETS
+    aerial_robot_hw_sim
+    simulation_attitude_controller
+  )
+endif()
 
 install(
-  TARGETS rotor_handle_lib spinal_interface aerial_robot_hw_sim simulation_attitude_controller sim_param_server
+  TARGETS ${PROJECT_TARGETS}
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -151,12 +169,15 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(
-  FILES
-    aerial_robot_hw_sim_plugins.xml
-  DESTINATION
-    share/${PROJECT_NAME}
-)
+if(BUILD_GAZEBO_SIM)
+  install(
+    FILES
+      aerial_robot_hw_sim_plugins.xml
+      flight_controllers_plugins.xml
+    DESTINATION
+      share/${PROJECT_NAME}
+  )
+endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 

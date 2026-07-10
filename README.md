@@ -34,6 +34,34 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
+### Ubuntu 22.04 on VIM4 (arm64)
+On VIM4, install ROS 2 Humble runtime packages manually and skip Gazebo / `ros_gz` dependencies during `rosdep`.
+
+#### Install repositories
+```bash
+cd ~/ros2/aerial_robot_base_ws
+vcs import src --input https://raw.githubusercontent.com/ut-dragon-lab/aerial_robot_base/master/aerial_robot_base.repos
+vcs import src < src/aerial_robot_base/aerial_robot_${ROS_DISTRO}.repos
+```
+
+#### Install dependencies
+```bash
+rosdep install --from-paths src --ignore-src -r -y \
+  --skip-keys="gazebo_ros_pkgs ros_gz_sim gz_ros2_control ignition-gazebo6 ros_gz_bridge"
+```
+
+#### Build the workspace
+```bash
+unset MAKEFLAGS
+unset CMAKE_BUILD_PARALLEL_LEVEL
+export MAKEFLAGS=-j2
+export CMAKE_BUILD_PARALLEL_LEVEL=2
+colcon build --executor sequential --parallel-workers 1 \
+  --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
+  --symlink-install
+source install/setup.bash
+```
+
 Setup pre-commit formatting
 ```bash
 cd ~/ros2/aerial_robot_base_ws/src/aerial_robot_base
