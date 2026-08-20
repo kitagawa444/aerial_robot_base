@@ -47,7 +47,7 @@ jobs:
             rosdep init
           fi
           rosdep update
-          vcs import src < src/${{ github.event.repository.name }}/aerial_robot_${ROS_DISTRO}.repos
+          vcs import --recursive src < src/${{ github.event.repository.name }}/aerial_robot_${ROS_DISTRO}.repos
           rosdep install -y -r \
             --from-paths src \
             --ignore-src \

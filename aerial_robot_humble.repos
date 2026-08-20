@@ -16,3 +16,15 @@ repositories:
     url: "https://github.com/ut-dragon-lab/aerial_robot_nerve.git"
     version: "master"
     local-name: "aerial_robot_nerve"
+
+  livox_ros_driver2:
+    type: git
+    url: "https://github.com/kitagawa444/livox_ros_driver2.git"
+    version: "ROS2"
+    local-name: "livox_ros_driver2"
+
+  FAST_LIO:
+    type: git
+    url: "https://github.com/kitagawa444/fast_lio.git"
+    version: "ROS2"
+    local-name: "FAST_LIO"

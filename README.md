@@ -25,7 +25,7 @@ rosdep update
 #### Install repositories
 ```bash
 vcs import src --input https://raw.githubusercontent.com/ut-dragon-lab/aerial_robot_base/master/aerial_robot_base.repos
-vcs import src < src/aerial_robot_base/aerial_robot_${ROS_DISTRO}.repos
+vcs import --recursive src < src/aerial_robot_base/aerial_robot_${ROS_DISTRO}.repos
 rosdep install -y -r --from-paths src --ignore-src --rosdistro ${ROS_DISTRO}
 ```
 Build the workspace
@@ -41,7 +41,7 @@ On VIM4, install ROS 2 Humble runtime packages manually and skip Gazebo / `ros_g
 ```bash
 cd ~/ros2/aerial_robot_base_ws
 vcs import src --input https://raw.githubusercontent.com/ut-dragon-lab/aerial_robot_base/master/aerial_robot_base.repos
-vcs import src < src/aerial_robot_base/aerial_robot_${ROS_DISTRO}.repos
+vcs import --recursive src < src/aerial_robot_base/aerial_robot_${ROS_DISTRO}.repos
 ```
 
 #### Install dependencies
