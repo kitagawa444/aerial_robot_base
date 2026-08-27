@@ -37,6 +37,12 @@ _ARGS = [
     ("spinal_baudrate",     "921600",           "Baudrate for spinal micro-ROS Agent"),
     ("spinal_verbosity",    "4",                "Verbosity for spinal micro-ROS Agent"),
     ("launch_mocap",        "true",             "Launch OptiTrack mocap receiver on real machine", ["true", "false"]),
+    (
+        "launch_livox",
+        "true",
+        "Launch Livox MID360s and FAST-LIO in egomotion mode",
+        ["true", "false"],
+    ),
     ("mocap_robot_id",      "1",                "OptiTrack rigid body ID for this robot"),
     ("mocap_multicast_address", "239.255.42.99", "OptiTrack NatNet multicast address"),
     ("mocap_data_port",     "1511",             "OptiTrack NatNet data port"),
@@ -90,6 +96,7 @@ def generate_launch_description():
     spinal_baudrate = LaunchConfiguration("spinal_baudrate")
     spinal_verbosity = LaunchConfiguration("spinal_verbosity")
     launch_mocap = LaunchConfiguration("launch_mocap")
+    launch_livox = LaunchConfiguration("launch_livox")
     mocap_robot_id = LaunchConfiguration("mocap_robot_id")
     mocap_multicast_address = LaunchConfiguration("mocap_multicast_address")
     mocap_data_port = LaunchConfiguration("mocap_data_port")
@@ -379,6 +386,30 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(real_machine_only + [" and '", launch_mocap, "' == 'true'"])),
     )
 
+    # Real machine: Livox MID360s and FAST-LIO for egomotion estimation
+    livox_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("aerial_robot_core"),
+                    "launch",
+                    "external_module",
+                    "livox.launch.py",
+                ]
+            )
+        ),
+        launch_arguments={
+            "use_sim_time": sim,
+            "rviz": "false",
+        }.items(),
+        condition=IfCondition(
+            PythonExpression(
+                real_machine_only
+                + [" and '", launch_livox, "' == 'true' and int('", estimation_mode, "') == 0"]
+            )
+        ),
+    )
+
     # ------------------------------------------------------------------
     # 5.  Assemble LaunchDescription
     # ------------------------------------------------------------------
@@ -395,6 +426,7 @@ def generate_launch_description():
     ld.add_action(model_launch)
     ld.add_action(spinal_agent_launch)
     ld.add_action(mocap_launch)
+    ld.add_action(livox_launch)
     ld.add_action(sim_launch)
 
     return ld

@@ -19,6 +19,8 @@
   <exec_depend>ros2launch</exec_depend>
   <exec_depend>ros2_numpy</exec_depend>
   <exec_depend>smach</exec_depend>
+  <exec_depend>fast_lio</exec_depend>
+  <exec_depend>livox_ros_driver2</exec_depend>
 
   <!-- Aerial robot dependencies -->
   <depend>aerial_robot_model</depend>

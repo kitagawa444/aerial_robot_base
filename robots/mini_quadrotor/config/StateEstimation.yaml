@@ -38,7 +38,7 @@
           - sensor_plugin/imu
           - sensor_plugin/mocap
           - sensor_plugin/ground_truth
-          # - sensor_plugin/odometry # Fast LIO
+          - sensor_plugin/odometry # Fast LIO
 
         # EGOMOTION_ESTIMATION_MODE = 0
         # EXPERIMENT_MODE = 1
@@ -57,8 +57,16 @@
             pos_noise_sigma: 0.0002
             acc_bias_noise_sigma: 0.001 # Force acc bias estimation by kalman filter
             time_sync: false
-          odometry1:
+          odometry:
             estimate_mode: 1 # 1<<0
-            # fusion_mode: 2 # ONLY_POS_MODE = 0, ONLY_VEL_MODE = 1, POS_VEL_MODE = 2 (default)
-            # param_verbose: true
-            throttle_rate: 120 # Hz
+            odom_sub: /Odometry_precede
+            sensor_frame: lidar_imu
+            fusion_mode: 2 # ONLY_POS_MODE = 0, ONLY_VEL_MODE = 1, POS_VEL_MODE = 2
+            local_vel_mode: false # FAST-LIO twist is expressed in the world frame
+            throttle_rate: 120.0 # Hz
+            level_pos_noise_sigma: 0.01
+            z_pos_noise_sigma: 0.01
+            vel_noise_sigma: 0.01
+            vel_outlier_thresh: 1.0
+            time_sync: false
+            reset_duration: 0.5
