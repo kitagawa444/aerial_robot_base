@@ -15,6 +15,8 @@
   ros__parameters:
     imu: "spinal_imu"
     mag: "spinal_mag"
+    rc_serial_port: "/dev/ttyACM0"  # XIAO CRSF USB CDC for radio-in-the-loop simulation
+    rc_serial_baud: 420000
     rotor_joints:
       - rotor1
       - rotor2
