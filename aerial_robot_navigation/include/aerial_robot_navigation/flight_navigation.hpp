@@ -252,7 +252,7 @@ protected:
   double land_vel_convergent_thresh_;
   bool require_spinal_ready_for_arm_;
   bool spinal_ready_seen_;
-  bool takeoff_prepared_{false};
+  bool takeoff_prepared_{ false };
   double spinal_ready_timeout_;
   double last_spinal_msg_time_;
 
