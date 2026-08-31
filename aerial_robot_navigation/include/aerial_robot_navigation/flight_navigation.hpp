@@ -206,6 +206,7 @@ protected:
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr battery_sub_;
   rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr flight_status_ack_sub_, stop_teleop_sub_;
+  rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr rc_teleop_command_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr takeoff_sub_, start_sub_, land_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr force_landing_sub_, halt_sub_;
   rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr ctrl_mode_sub_;
@@ -251,6 +252,7 @@ protected:
   double land_vel_convergent_thresh_;
   bool require_spinal_ready_for_arm_;
   bool spinal_ready_seen_;
+  bool takeoff_prepared_{ false };
   double spinal_ready_timeout_;
   double last_spinal_msg_time_;
 
@@ -316,6 +318,7 @@ protected:
   void landCallback(std_msgs::msg::Empty::ConstSharedPtr msg);
   void haltCallback(std_msgs::msg::Empty::ConstSharedPtr msg);
   void forceLandingCallback(std_msgs::msg::Empty::ConstSharedPtr msg);
+  void rcTeleopCommandCallback(std_msgs::msg::UInt8::ConstSharedPtr msg);
   void stopTeleopCallback(std_msgs::msg::UInt8::ConstSharedPtr stop_msg);
   void pathCallback(const nav_msgs::msg::Path::ConstSharedPtr msg);
   void singleGoalCallback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg);
@@ -328,6 +331,7 @@ protected:
   virtual void reset();
   void startTakeoff();
   void motorArming();
+  bool prepareTakeoffTargets();
   bool spinalReadyForArming();
   virtual void updateLandCommand();
 

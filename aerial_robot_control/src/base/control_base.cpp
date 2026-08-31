@@ -87,7 +87,14 @@ void ControlBase::initialize(rclcpp::Node::SharedPtr node, std::shared_ptr<aeria
 
 bool ControlBase::update()
 {
-  if (navigator_->getNaviState() == aerial_robot_navigation::START_STATE) activate();
+  // Keep spinal configured while disarmed so a direct RC ARM does not depend
+  // on a preceding ROS arm request.  activate() rate-limits these static
+  // motor/UAV information messages to approximately 10 Hz.
+  if (navigator_->getNaviState() == aerial_robot_navigation::ARM_OFF_STATE ||
+      navigator_->getNaviState() == aerial_robot_navigation::START_STATE)
+  {
+    activate();
+  }
 
   if (navigator_->getNaviState() == aerial_robot_navigation::ARM_OFF_STATE && control_timestamp_ > 0)
   {
