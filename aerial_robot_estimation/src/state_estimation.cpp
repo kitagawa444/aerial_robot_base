@@ -35,6 +35,8 @@
 #include "aerial_robot_estimation/sensor/base_plugin.h"
 #include "aerial_robot_estimation/state_estimation.h"
 
+#include <cmath>
+
 using namespace aerial_robot_estimation;
 static const rclcpp::Logger LOGGER = rclcpp::get_logger("state_estimation");
 
@@ -58,7 +60,7 @@ StateEstimator::StateEstimator()
   has_refined_yaw_estimate_[EGOMOTION_ESTIMATE] = false;
   has_refined_yaw_estimate_[EXPERIMENT_ESTIMATE] = false;
 
-  for (int i = 0; i < 3; i++)
+  for (size_t i = 0; i < ESTIMATE_MODE_COUNT; i++)
   {
     for (int j = 0; j < 3; j++)
     {
@@ -70,6 +72,10 @@ StateEstimator::StateEstimator()
 
     base_pose_.at(i) = KDL::Frame::Identity();
     cog_pose_.at(i) = KDL::Frame::Identity();
+    base_twist_.at(i) = KDL::Twist::Zero();
+    cog_twist_.at(i) = KDL::Twist::Zero();
+    base_acc_.at(i) = KDL::Vector::Zero();
+    cog_acc_.at(i) = KDL::Vector::Zero();
   }
 }
 
@@ -86,6 +92,11 @@ void StateEstimator::initialize(rclcpp::Node::SharedPtr node,
   cog_odom_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>("uav/cog/odom", rclcpp::SystemDefaultsQoS());
   ee_contact_odom_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>("uav/ee_contact/odom",
                                                                           rclcpp::SystemDefaultsQoS());
+  external_state_pub_ = node_->create_publisher<spinal_msgs::msg::ExternalStateMeasurement>(
+      "external_state_measurement", rclcpp::SystemDefaultsQoS());
+  spinal_state_sub_ = node_->create_subscription<spinal_msgs::msg::StateEstimate>(
+      "state_estimate", rclcpp::SensorDataQoS(),
+      std::bind(&StateEstimator::spinalStateCallback, this, std::placeholders::_1));
 
   node_->get_parameter_or("tf_prefix", tf_prefix_, std::string(""));
   br_ = std::make_shared<tf2_ros::TransformBroadcaster>(node_);
@@ -113,25 +124,40 @@ void StateEstimator::load()
     return false;
   };
 
-  node_->get_parameter_or("estimation.mode", estimate_mode_, 0);  // EGOMOTION_ESTIMATE: 0
-  if (estimate_mode_ > GROUND_TRUTH)
+  node_->get_parameter_or("estimation.mode", requested_estimate_mode_, EGOMOTION_ESTIMATE);
+  node_->get_parameter_or("estimation.spinal_state_timeout", spinal_state_timeout_, 0.5);
+  if (requested_estimate_mode_ < EGOMOTION_ESTIMATE || requested_estimate_mode_ > SPINAL_MODE_GROUND_TRUTH)
   {
-    RCLCPP_ERROR(LOGGER, "[estimation] The estimate mode is not correct: %d. It should be [0, 1, 2].", estimate_mode_);
+    RCLCPP_ERROR(LOGGER, "[estimation] Invalid mode %d. Expected an estimate mode in [0, 5].",
+                 requested_estimate_mode_);
     return;
   }
+  estimate_mode_ = isSpinalMode(requested_estimate_mode_) ? SPINAL_ESTIMATE : requested_estimate_mode_;
 
   std::string estimate_mode_str;
-  if (estimate_mode_ == EGOMOTION_ESTIMATE)
+  if (requested_estimate_mode_ == EGOMOTION_ESTIMATE)
   {
     estimate_mode_str = "EGOMOTION_ESTIMATE";
   }
-  else if (estimate_mode_ == EXPERIMENT_ESTIMATE)
+  else if (requested_estimate_mode_ == EXPERIMENT_ESTIMATE)
   {
     estimate_mode_str = "EXPERIMENT_ESTIMATE";
   }
-  else if (estimate_mode_ == GROUND_TRUTH)
+  else if (requested_estimate_mode_ == GROUND_TRUTH)
   {
     estimate_mode_str = "GROUND_TRUTH";
+  }
+  else if (requested_estimate_mode_ == SPINAL_MODE_EGOMOTION)
+  {
+    estimate_mode_str = "SPINAL_MODE_EGOMOTION";
+  }
+  else if (requested_estimate_mode_ == SPINAL_MODE_EXPERIMENT)
+  {
+    estimate_mode_str = "SPINAL_MODE_EXPERIMENT";
+  }
+  else if (requested_estimate_mode_ == SPINAL_MODE_GROUND_TRUTH)
+  {
+    estimate_mode_str = "SPINAL_MODE_GROUND_TRUTH";
   }
   RCLCPP_INFO_STREAM(LOGGER, std::string("\033[32m estimate mode: ") << estimate_mode_str << std::string("\033[0m"));
 
@@ -831,13 +857,123 @@ void StateEstimator::sensorHealthCheck()
 
 void StateEstimator::publish()
 {
-  rclcpp::Time imu_stamp = imu_handlers_.at(0)->getTimeStamp();
+  rclcpp::Time state_stamp(0, 0, node_->get_clock()->get_clock_type());
+  if (isSpinalMode(requested_estimate_mode_))
+  {
+    {
+      // Only protect the state metadata copy here. odomPublish() and
+      // tfBroadcast() use state getters which acquire state_mutex_ again.
+      // Keeping this lock across those calls deadlocks the executor after the
+      // first spinal state message.
+      std::lock_guard<std::mutex> lock(state_mutex_);
+      if (!spinal_state_received_) return;
+      state_stamp = spinal_state_stamp_;
+    }
+    if ((node_->get_clock()->now() - state_stamp).seconds() > spinal_state_timeout_)
+    {
+      RCLCPP_WARN_THROTTLE(LOGGER, *node_->get_clock(), 1000, "[estimation] Spinal state estimate is stale");
+      return;
+    }
+    if (state_stamp.seconds() == 0) return;
 
-  if (imu_stamp.seconds() == 0) return;  // Not ready
+    odomPublish(state_stamp);
+    tfBroadcast(state_stamp);
+    prev_pub_stamp_ = state_stamp;
+    return;
+  }
 
-  odomPublish(imu_stamp);
-  tfBroadcast(imu_stamp);
-  prev_pub_stamp_ = imu_stamp;
+  if (imu_handlers_.empty()) return;
+  state_stamp = imu_handlers_.at(0)->getTimeStamp();
+
+  if (state_stamp.seconds() == 0) return;
+
+  odomPublish(state_stamp);
+  tfBroadcast(state_stamp);
+  prev_pub_stamp_ = state_stamp;
+}
+
+void StateEstimator::publishExternalStateMeasurement(const rclcpp::Time &stamp, const KDL::Frame &cog_pose,
+                                                     const KDL::Twist &cog_twist, uint8_t field_mask,
+                                                     const KDL::Vector &position_variance,
+                                                     const KDL::Vector &velocity_variance,
+                                                     const KDL::Vector &attitude_variance)
+{
+  if (!external_state_pub_) return;
+
+  spinal_msgs::msg::ExternalStateMeasurement msg;
+  msg.stamp = stamp;
+  msg.estimate_mode = static_cast<uint8_t>(requested_estimate_mode_);
+  msg.field_mask = field_mask;
+  for (size_t axis = 0; axis < 3; ++axis)
+  {
+    msg.position[axis] = cog_pose.p[axis];
+    msg.position_variance[axis] = position_variance[axis];
+    msg.velocity[axis] = cog_twist.vel[axis];
+    msg.velocity_variance[axis] = velocity_variance[axis];
+    msg.attitude_variance[axis] = attitude_variance[axis];
+    msg.angular_velocity[axis] = cog_twist.rot[axis];
+  }
+  double qx = 0.0;
+  double qy = 0.0;
+  double qz = 0.0;
+  double qw = 1.0;
+  cog_pose.M.GetQuaternion(qx, qy, qz, qw);
+  msg.attitude[0] = qx;
+  msg.attitude[1] = qy;
+  msg.attitude[2] = qz;
+  msg.attitude[3] = qw;
+  external_state_pub_->publish(msg);
+}
+
+void StateEstimator::spinalStateCallback(const spinal_msgs::msg::StateEstimate::SharedPtr msg)
+{
+  if (!msg) return;
+
+  for (const float value : msg->position)
+    if (!std::isfinite(value)) return;
+  for (const float value : msg->velocity)
+    if (!std::isfinite(value)) return;
+  for (const float value : msg->acceleration)
+    if (!std::isfinite(value)) return;
+  for (const float value : msg->attitude)
+    if (!std::isfinite(value)) return;
+  for (const float value : msg->angular_velocity)
+    if (!std::isfinite(value)) return;
+
+  KDL::Frame cog_pose;
+  cog_pose.p = KDL::Vector(msg->position[0], msg->position[1], msg->position[2]);
+  cog_pose.M = KDL::Rotation::Quaternion(msg->attitude[0], msg->attitude[1], msg->attitude[2], msg->attitude[3]);
+  KDL::Twist cog_twist(KDL::Vector(msg->velocity[0], msg->velocity[1], msg->velocity[2]),
+                       KDL::Vector(msg->angular_velocity[0], msg->angular_velocity[1], msg->angular_velocity[2]));
+  const KDL::Vector cog_acceleration(msg->acceleration[0], msg->acceleration[1], msg->acceleration[2]);
+
+  const KDL::Frame cog_to_baselink = robot_model_->getCog2Baselink<KDL::Frame>();
+  const KDL::Frame base_pose = cog_pose * cog_to_baselink;
+  const KDL::Vector base_angular_velocity = cog_to_baselink.M.Inverse() * cog_twist.rot;
+  const KDL::Vector base_velocity = cog_twist.vel + cog_pose.M * (cog_twist.rot * cog_to_baselink.p);
+
+  std::lock_guard<std::mutex> lock(state_mutex_);
+  cog_pose_.at(SPINAL_ESTIMATE) = cog_pose;
+  cog_twist_.at(SPINAL_ESTIMATE) = cog_twist;
+  cog_acc_.at(SPINAL_ESTIMATE) = cog_acceleration;
+  base_pose_.at(SPINAL_ESTIMATE) = base_pose;
+  base_twist_.at(SPINAL_ESTIMATE) = KDL::Twist(base_velocity, base_angular_velocity);
+  base_acc_.at(SPINAL_ESTIMATE) = cog_acceleration;
+
+  const bool horizontal_valid = (msg->validity & spinal_msgs::msg::StateEstimate::HORIZONTAL_POSITION_VALID) != 0U;
+  const bool vertical_valid = (msg->validity & spinal_msgs::msg::StateEstimate::VERTICAL_POSITION_VALID) != 0U;
+  const bool attitude_valid = (msg->validity & spinal_msgs::msg::StateEstimate::ATTITUDE_VALID) != 0U;
+  base_pos_status_matrix_.at(SPINAL_ESTIMATE).at(State::X) = horizontal_valid ? 1 : 0;
+  base_pos_status_matrix_.at(SPINAL_ESTIMATE).at(State::Y) = horizontal_valid ? 1 : 0;
+  base_pos_status_matrix_.at(SPINAL_ESTIMATE).at(State::Z) = vertical_valid ? 1 : 0;
+  cog_pos_status_matrix_.at(SPINAL_ESTIMATE) = base_pos_status_matrix_.at(SPINAL_ESTIMATE);
+  base_rot_status_.at(SPINAL_ESTIMATE) = attitude_valid ? 1 : 0;
+  cog_rot_status_.at(SPINAL_ESTIMATE) = attitude_valid ? 1 : 0;
+
+  // The MCU clock is not guaranteed to be synchronized to the ROS clock.
+  // Use receive time for PC-side freshness checks, odometry, and TF.
+  spinal_state_stamp_ = node_->get_clock()->now();
+  spinal_state_received_ = true;
 }
 
 void StateEstimator::odomPublish(rclcpp::Time stamp)

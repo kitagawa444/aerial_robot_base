@@ -26,11 +26,11 @@ _ARGS = [
     ("robot_ns",            "mini_quadrotor",   "Namespace for all robot nodes"),
     ("real_machine",        "true",             "Use real machine specific bring-up inside model_launch", ["true", "false"]),
     ("main_rate",           "100.0",            "Core node main loop rate [Hz]"),
-    ("estimation_mode",     "0",                "Estimator mode on real machine: 0=egomotion, 1=experiment, 2=ground-truth", ["0", "1", "2"]),
+    ("estimation_mode",     "0",                "Estimate mode: 0=PC LIO, 1=PC mocap EKF, 2=PC mocap direct, 3=spinal LIO ESKF, 4=spinal mocap ESKF, 5=spinal mocap direct", ["0", "1", "2", "3", "4", "5"]),
     ("model_options",       "",                 "Extra xacro arguments passed verbatim to xacro"),
     ("headless",            "true",             "Run without GUI", ["true", "false"]),
     ("sim",                 "false",            "Launch Gazebo simulation", ["true", "false"]),
-    ("sim_estimation_mode", "2",                "Estimator mode in simulation: 0=egomotion, 1=experiment, 2=ground-truth", ["0", "1", "2"]),
+    ("sim_estimation_mode", "4",                "Simulation estimate mode: 0=PC LIO, 1=PC mocap EKF, 2=PC mocap direct, 3=spinal LIO ESKF, 4=spinal mocap ESKF, 5=spinal mocap direct", ["0", "1", "2", "3", "4", "5"]),
     ("launch_spinal",       "true",             "Launch micro-ROS Agent for spinal on real machine", ["true", "false"]),
     ("launch_spinal_bridge", "true",            "Relay root spinal topics to/from robot namespace", ["true", "false"]),
     ("spinal_dev",          "/dev/flight_controller", "Serial device for spinal micro-ROS Agent"),
@@ -404,8 +404,7 @@ def generate_launch_description():
         }.items(),
         condition=IfCondition(
             PythonExpression(
-                real_machine_only
-                + [" and '", launch_livox, "' == 'true' and int('", estimation_mode, "') == 0"]
+                real_machine_only + [" and '", launch_livox, "' == 'true' and int('", estimation_mode, "') in (0, 3)"]
             )
         ),
     )

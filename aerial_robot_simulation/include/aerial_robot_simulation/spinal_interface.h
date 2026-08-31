@@ -40,10 +40,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <hardware_interface/resource_manager.hpp>
 #include <limits>
-#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp>
 #include <stdexcept>

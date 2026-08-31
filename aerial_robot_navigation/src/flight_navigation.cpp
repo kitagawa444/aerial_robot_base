@@ -916,9 +916,11 @@ bool NavigationBase::prepareTakeoffTargets()
 {
   /* Z(altitude) */
   /* Check whether there is the fusion for the altitude */
-  if (!estimator_->getBasePosStateStatus(State::Z, estimate_mode_))
+  const int altitude_status = estimator_->getBasePosStateStatus(State::Z, estimate_mode_);
+  if (!altitude_status)
   {
-    RCLCPP_ERROR(NAV_LOGGER, "No correct sensor fusion for z(altitude), can not fly");
+    RCLCPP_ERROR(NAV_LOGGER, "No correct sensor fusion for z(altitude), can not fly (estimate mode: %d, status: %d)",
+                 estimate_mode_, altitude_status);
     return false;
   }
 
