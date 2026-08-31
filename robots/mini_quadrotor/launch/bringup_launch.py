@@ -238,6 +238,9 @@ def generate_launch_description():
                     value_type=bool,
                 ),
                 "estimation.mode": active_estimation_mode,
+                "controller.position_control.service_name": PythonExpression(
+                    ["'/set_position_control' if ", *real_machine_only, " else 'set_position_control'"]
+                ),
                 "use_sim_time": sim,
             },
             robot_description_param,

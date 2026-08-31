@@ -7,6 +7,16 @@
       
       param_verbose: false
 
+      # Run position/velocity control on spinal. The existing xy/z/yaw PID
+      # definitions and LQI motor gains below are transferred to the FC.
+      spinal_position_control: true
+      position_control:
+        max_horizontal_acceleration: 4.0
+        max_vertical_acceleration: 5.0
+        max_tilt_angle: 0.7
+        setpoint_timeout_ms: 500
+        rc_timeout_ms: 100
+
       hovering_approximate: false
       torque_allocation_matrix_inv_pub_interval: 0.05
 

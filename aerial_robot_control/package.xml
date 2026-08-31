@@ -22,6 +22,7 @@
   <depend>aerial_robot_navigation</depend>
   <depend>aerial_robot_msgs</depend>
   <depend>spinal</depend>
+  <depend>std_srvs</depend>
 
   <!-- Linters -->
   <test_depend>ament_lint_auto</test_depend>

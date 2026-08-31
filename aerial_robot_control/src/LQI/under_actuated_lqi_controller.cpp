@@ -102,6 +102,7 @@ void UnderActuatedLQIController::initialize(rclcpp::Node::SharedPtr node,
   else
   {
     (void)updateGain(false);
+    updateSpinalPositionControlConfig();
   }
 }
 
@@ -164,6 +165,9 @@ void UnderActuatedLQIController::activate()
 {
   ControlBase::activate();
 
+  const double now = node_->now().seconds();
+  if (activation_config_sent_stamp_ >= 0.0 && now - activation_config_sent_stamp_ < 1.0) return;
+
   if (!has_optimal_gain_ && !realtime_update_)
   {
     (void)updateGain(false);
@@ -173,7 +177,11 @@ void UnderActuatedLQIController::activate()
   if (has_optimal_gain_)
   {
     sendGain();
-    RCLCPP_INFO_THROTTLE(node_->get_logger(), *(node_->get_clock()), 1000, "[LQI] Send LQI gains");
+    if (activation_config_sent_stamp_ < 0.0)
+    {
+      RCLCPP_INFO(node_->get_logger(), "[LQI] Send LQI gains during pre-arm flight preparation");
+    }
+    activation_config_sent_stamp_ = now;
   }
   else
   {
@@ -465,6 +473,8 @@ void UnderActuatedLQIController::allocateYawTerm()
 
 void UnderActuatedLQIController::sendGain()
 {
+  updateSpinalPositionControlConfig();
+
   aerial_robot_msgs::msg::FourAxisGain four_axis_gain_msg;
   spinal_msgs::msg::RollPitchYawTerms rpy_gain_msg;  // Send to spinal
   rpy_gain_msg.motors.resize(motor_num_);
@@ -500,6 +510,45 @@ void UnderActuatedLQIController::sendGain()
   }
   rpy_gain_pub_->publish(rpy_gain_msg);
   four_axis_gain_pub_->publish(four_axis_gain_msg);
+  if (spinalPositionControl()) position_control_config_pub_->publish(position_control_config_);
+}
+
+void UnderActuatedLQIController::updateSpinalPositionControlConfig()
+{
+  if (!has_optimal_gain_ || motor_num_ <= 0 || z_gains_.size() != static_cast<size_t>(motor_num_) ||
+      yaw_gains_.size() != static_cast<size_t>(motor_num_))
+  {
+    position_control_config_.use_lqi_gains = false;
+    return;
+  }
+
+  const Eigen::MatrixXd allocation_inverse = getQInv();
+  if (allocation_inverse.rows() != motor_num_ || allocation_inverse.cols() < 4)
+  {
+    position_control_config_.use_lqi_gains = false;
+    return;
+  }
+
+  position_control_config_.vertical_acceleration_to_thrust.resize(motor_num_);
+  position_control_config_.yaw_acceleration_to_thrust.resize(motor_num_);
+  position_control_config_.z_p_gain.resize(motor_num_);
+  position_control_config_.z_i_gain.resize(motor_num_);
+  position_control_config_.z_d_gain.resize(motor_num_);
+  position_control_config_.yaw_p_gain.resize(motor_num_);
+  position_control_config_.yaw_i_gain.resize(motor_num_);
+  position_control_config_.yaw_d_gain.resize(motor_num_);
+  for (int motor = 0; motor < motor_num_; ++motor)
+  {
+    position_control_config_.vertical_acceleration_to_thrust[motor] = allocation_inverse(motor, 0);
+    position_control_config_.yaw_acceleration_to_thrust[motor] = allocation_inverse(motor, 3);
+    position_control_config_.z_p_gain[motor] = z_gains_.at(motor)[0];
+    position_control_config_.z_i_gain[motor] = z_gains_.at(motor)[1];
+    position_control_config_.z_d_gain[motor] = z_gains_.at(motor)[2];
+    position_control_config_.yaw_p_gain[motor] = yaw_gains_.at(motor)[0];
+    position_control_config_.yaw_i_gain[motor] = yaw_gains_.at(motor)[1];
+    position_control_config_.yaw_d_gain[motor] = yaw_gains_.at(motor)[2];
+  }
+  position_control_config_.use_lqi_gains = true;
 }
 
 void UnderActuatedLQIController::sendCmd()
@@ -673,7 +722,7 @@ rcl_interfaces::msg::SetParametersResult UnderActuatedLQIController::parametersC
   return result;
 }
 
-}
+}  // namespace aerial_robot_control
 
 /* Plugin registration */
 #include <pluginlib/class_list_macros.hpp>
