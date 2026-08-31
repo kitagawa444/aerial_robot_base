@@ -49,6 +49,8 @@
 #include <geographic_msgs/msg/geo_point.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <spinal_msgs/msg/external_state_measurement.hpp>
+#include <spinal_msgs/msg/state_estimate.hpp>
 
 /* Kalman Filter library */
 #include "kalman_filter/kf_base_plugin.h"
@@ -58,8 +60,9 @@
 #include "aerial_robot_msgs/msg/states.hpp"
 
 
-using StatusVector = std::array<int, 3>;           // x, y, z
-using StatusMatrix = std::array<StatusVector, 3>;  // Egomotion, experiment, ground truth
+using StatusVector = std::array<int, 3>;  // x, y, z
+static constexpr size_t ESTIMATE_MODE_COUNT = 4;
+using StatusMatrix = std::array<StatusVector, ESTIMATE_MODE_COUNT>;
 using FuserPtr = std::shared_ptr<kf_plugin::KalmanFilter>;
 using FuserList = std::vector<std::pair<std::string, FuserPtr>>;
 
@@ -97,6 +100,13 @@ static constexpr int NONE = -1;
 static constexpr int EGOMOTION_ESTIMATE = 0;
 static constexpr int EXPERIMENT_ESTIMATE = 1;
 static constexpr int GROUND_TRUTH = 2;
+static constexpr int SPINAL_MODE_EGOMOTION = 3;
+static constexpr int SPINAL_MODE_EXPERIMENT = 4;
+static constexpr int SPINAL_MODE_GROUND_TRUTH = 5;
+// Modes 3..5 share one PC-side state slot populated from spinal/state_estimate.
+static constexpr int SPINAL_ESTIMATE = SPINAL_MODE_EGOMOTION;
+
+inline bool isSpinalMode(int mode) { return mode >= SPINAL_MODE_EGOMOTION && mode <= SPINAL_MODE_GROUND_TRUTH; }
 
 static constexpr float G = 9.797;
 
@@ -204,6 +214,12 @@ public:
 
   inline int getEstimateMode() { return estimate_mode_; }
   inline void setEstimateMode(int estimate_mode) { estimate_mode_ = estimate_mode; }
+  inline int getRequestedEstimateMode() const { return requested_estimate_mode_; }
+
+  void publishExternalStateMeasurement(const rclcpp::Time &stamp, const KDL::Frame &cog_pose,
+                                       const KDL::Twist &cog_twist, uint8_t field_mask,
+                                       const KDL::Vector &position_variance, const KDL::Vector &velocity_variance,
+                                       const KDL::Vector &attitude_variance);
 
   /* Set unhealth level */
   void setUnhealthLevel(uint8_t unhealth_level);
@@ -227,6 +243,8 @@ protected:
 
   /* Publisher */
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr baselink_odom_pub_, cog_odom_pub_, ee_contact_odom_pub_;
+  rclcpp::Publisher<spinal_msgs::msg::ExternalStateMeasurement>::SharedPtr external_state_pub_;
+  rclcpp::Subscription<spinal_msgs::msg::StateEstimate>::SharedPtr spinal_state_sub_;
 
   /* Timer */
   rclcpp::TimerBase::SharedPtr state_process_timer_;
@@ -248,6 +266,10 @@ protected:
   std::mutex queue_mutex_;
   /* ROS param */
   int estimate_mode_; /* Main estimte mode */
+  int requested_estimate_mode_{ EGOMOTION_ESTIMATE };
+  double spinal_state_timeout_{ 0.5 };
+  rclcpp::Time spinal_state_stamp_{ 0, 0, RCL_ROS_TIME };
+  bool spinal_state_received_{ false };
 
   /* Robot model (kinematics)  */
   std::shared_ptr<aerial_robot_model::RobotModel> robot_model_;
@@ -255,10 +277,10 @@ protected:
 
   /* States */
   StatusMatrix base_pos_status_matrix_, cog_pos_status_matrix_;
-  std::array<int, 3> base_rot_status_, cog_rot_status_;
-  std::array<KDL::Frame, 3> base_pose_, cog_pose_;
-  std::array<KDL::Twist, 3> base_twist_, cog_twist_;
-  std::array<KDL::Vector, 3> base_acc_, cog_acc_;
+  std::array<int, ESTIMATE_MODE_COUNT> base_rot_status_, cog_rot_status_;
+  std::array<KDL::Frame, ESTIMATE_MODE_COUNT> base_pose_, cog_pose_;
+  std::array<KDL::Twist, ESTIMATE_MODE_COUNT> base_twist_, cog_twist_;
+  std::array<KDL::Vector, ESTIMATE_MODE_COUNT> base_acc_, cog_acc_;
 
   bool has_groundtruth_odom_;  // Whether receive entire groundthtruth odometry (e.g., for simulation mode)
 
@@ -299,5 +321,6 @@ protected:
   void odomPublish(rclcpp::Time stamp);
   void tfBroadcast(rclcpp::Time stamp);
   void load();
+  void spinalStateCallback(const spinal_msgs::msg::StateEstimate::SharedPtr msg);
 };
 }

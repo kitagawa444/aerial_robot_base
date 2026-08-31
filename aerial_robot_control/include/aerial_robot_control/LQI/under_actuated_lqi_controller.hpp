@@ -34,12 +34,12 @@
 #pragma once
 
 /* Aerial robot packages */
-#include "aerial_robot_control/PID/pose_pid_controller_base.hpp"
 #include "aerial_robot_control/LQI/care.hpp"
+#include "aerial_robot_control/PID/pose_pid_controller_base.hpp"
 #include "aerial_robot_msgs/msg/four_axis_gain.hpp"
 #include "spinal_msgs/msg/four_axis_command.hpp"
-#include "spinal_msgs/msg/roll_pitch_yaw_terms.hpp"
 #include "spinal_msgs/msg/p_matrix_pseudo_inverse_with_inertia.hpp"
+#include "spinal_msgs/msg/roll_pitch_yaw_terms.hpp"
 
 namespace aerial_robot_control
 {
@@ -75,6 +75,7 @@ protected:
   bool clamp_gain_;
   Eigen::MatrixXd K_;
   bool has_optimal_gain_;
+  double activation_config_sent_stamp_{ -1.0 };
 
   Eigen::Vector3d lqi_roll_pitch_weight_, lqi_yaw_weight_, lqi_z_weight_;
   std::vector<double> r_;  // Matrix R
@@ -101,9 +102,10 @@ protected:
   virtual void controlCore() override;
 
   virtual void sendGain();
+  void updateSpinalPositionControlConfig();
   virtual void sendCmd() override;
   virtual void sendFourAxisCommand();
   void sendRotationalInertiaComp();
 };
 
-}
+}  // namespace aerial_robot_control

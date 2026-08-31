@@ -79,6 +79,7 @@ private:
   double z_pos_noise_sigma_;
   double vel_noise_sigma_;
   double vel_outlier_thresh_;
+  double attitude_noise_sigma_;
   int fusion_mode_;
   bool local_vel_mode_;
 
@@ -91,6 +92,7 @@ private:
   std::string odom_origin_frame_;
 
   double ref_time_stamp_;
+  bool external_measurement_ready_{ false };
   aerial_robot_msgs::msg::States states_; /* for debug */
 
   bool checkStatus();
@@ -106,6 +108,7 @@ private:
   void print();
 
   void publish() override;
+  void publishExternalMeasurement();
   void tfBroadcast();
   void rosParamInit() override;
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr vo_msg);

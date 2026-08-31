@@ -15,7 +15,8 @@
   ros__parameters:
     imu: "spinal_imu"
     mag: "spinal_mag"
-    rc_serial_port: "/dev/ttyACM0"  # XIAO CRSF USB CDC for radio-in-the-loop simulation
+    # Use the persistent XIAO identity: ttyACM numbering changes with USB attach order.
+    rc_serial_port: "/dev/serial/by-id/usb-Seeed_Studio_Seeed_Studio_XIAO_RP2040_4250305539333105-if00"
     rc_serial_baud: 420000
     rotor_joints:
       - rotor1

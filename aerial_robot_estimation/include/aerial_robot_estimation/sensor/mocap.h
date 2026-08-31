@@ -67,7 +67,7 @@ protected:
   IirFilter lpf_pos_, lpf_vel_, lpf_omega_;
   /* ROS param */
   double sample_freq_, cutoff_pos_freq_, cutoff_vel_freq_;
-  double pos_noise_sigma_, acc_bias_noise_sigma_;
+  double pos_noise_sigma_, vel_noise_sigma_, attitude_noise_sigma_, acc_bias_noise_sigma_;
 
   aerial_robot_msgs::msg::States states_; /* for debug */
 
@@ -79,6 +79,7 @@ protected:
   void setState() override;
 
   void publish() override;
+  void publishExternalMeasurement();
   void rosParamInit() override;
   void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
 };

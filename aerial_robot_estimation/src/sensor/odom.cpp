@@ -102,6 +102,8 @@ void Odometry::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
 void Odometry::estimateProcess()
 {
+  external_measurement_ready_ = false;
+
   /* Update and check status */
   if (!checkStatus()) return;
 
@@ -183,6 +185,7 @@ void Odometry::preProcessState()
 
   // Debug print
   print();
+  external_measurement_ready_ = true;
 }
 
 bool Odometry::calcuateOriginOffset()
@@ -484,6 +487,37 @@ void Odometry::publish()
   }
 
   state_pub_->publish(states_);
+  publishExternalMeasurement();
+}
+
+void Odometry::publishExternalMeasurement()
+{
+  if (!external_measurement_ready_ || estimator_->getRequestedEstimateMode() != SPINAL_MODE_EGOMOTION) return;
+
+  const KDL::Frame cog_to_baselink = robot_model_->getCog2Baselink<KDL::Frame>();
+  const KDL::Vector baselink_to_cog = cog_to_baselink.Inverse().p;
+  KDL::Frame cog_pose;
+  cog_pose.M = base_pose_.M * cog_to_baselink.M.Inverse();
+  cog_pose.p = base_pose_.p + base_pose_.M * baselink_to_cog;
+
+  KDL::Twist cog_twist;
+  const KDL::Vector angular_velocity_base = sensor_rel_pose_.M * sensor_twist_.rot;
+  cog_twist.vel = base_twist_.vel + base_pose_.M * (angular_velocity_base * baselink_to_cog);
+  cog_twist.rot = cog_to_baselink.M * angular_velocity_base;
+
+  uint8_t field_mask = spinal_msgs::msg::ExternalStateMeasurement::POSITION |
+                       spinal_msgs::msg::ExternalStateMeasurement::ATTITUDE;
+  if (fusion_mode_ != ONLY_POS_MODE) field_mask |= spinal_msgs::msg::ExternalStateMeasurement::VELOCITY;
+
+  const double level_position_variance = level_pos_noise_sigma_ * level_pos_noise_sigma_;
+  const double vertical_position_variance = z_pos_noise_sigma_ * z_pos_noise_sigma_;
+  const double velocity_variance = vel_noise_sigma_ * vel_noise_sigma_;
+  const double attitude_variance = attitude_noise_sigma_ * attitude_noise_sigma_;
+  estimator_->publishExternalStateMeasurement(
+      time_stamp_, cog_pose, cog_twist, field_mask,
+      KDL::Vector(level_position_variance, level_position_variance, vertical_position_variance),
+      KDL::Vector(velocity_variance, velocity_variance, velocity_variance),
+      KDL::Vector(attitude_variance, attitude_variance, attitude_variance));
 }
 
 void Odometry::tfBroadcast()
@@ -506,6 +540,7 @@ void Odometry::rosParamInit()
   getParam<double>("z_pos_noise_sigma", z_pos_noise_sigma_, 0.01);
   getParam<double>("vel_noise_sigma", vel_noise_sigma_, 0.05);
   getParam<double>("vel_outlier_thresh", vel_outlier_thresh_, 1.0);
+  getParam<double>("attitude_noise_sigma", attitude_noise_sigma_, 0.05);
 }
 
 }
