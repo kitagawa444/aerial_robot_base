@@ -118,6 +118,8 @@ void Mocap::estimateProcess()
 
   preProcessState();
 
+  publishExternalMeasurement();
+
   fuse();
 
   setState();
@@ -312,9 +314,38 @@ void Mocap::publish()
   state_pub_->publish(states_);
 }
 
+void Mocap::publishExternalMeasurement()
+{
+  const int mode = estimator_->getRequestedEstimateMode();
+  if (mode != SPINAL_MODE_EXPERIMENT && mode != SPINAL_MODE_GROUND_TRUTH) return;
+
+  const KDL::Frame cog_to_baselink = robot_model_->getCog2Baselink<KDL::Frame>();
+  const KDL::Vector baselink_to_cog = cog_to_baselink.Inverse().p;
+  KDL::Frame cog_pose;
+  cog_pose.M = pose_.M * cog_to_baselink.M.Inverse();
+  cog_pose.p = pose_.p + pose_.M * baselink_to_cog;
+
+  KDL::Twist cog_twist;
+  cog_twist.vel = twist_.vel + pose_.M * (twist_.rot * baselink_to_cog);
+  cog_twist.rot = cog_to_baselink.M * twist_.rot;
+
+  const double position_variance = pos_noise_sigma_ * pos_noise_sigma_;
+  const double velocity_variance = vel_noise_sigma_ * vel_noise_sigma_;
+  const double attitude_variance = attitude_noise_sigma_ * attitude_noise_sigma_;
+  estimator_->publishExternalStateMeasurement(time_stamp_, cog_pose, cog_twist,
+                                              spinal_msgs::msg::ExternalStateMeasurement::POSITION |
+                                                  spinal_msgs::msg::ExternalStateMeasurement::VELOCITY |
+                                                  spinal_msgs::msg::ExternalStateMeasurement::ATTITUDE,
+                                              KDL::Vector(position_variance, position_variance, position_variance),
+                                              KDL::Vector(velocity_variance, velocity_variance, velocity_variance),
+                                              KDL::Vector(attitude_variance, attitude_variance, attitude_variance));
+}
+
 void Mocap::rosParamInit()
 {
   getParam<double>("pos_noise_sigma", pos_noise_sigma_, 0.001);
+  getParam<double>("vel_noise_sigma", vel_noise_sigma_, 0.02);
+  getParam<double>("attitude_noise_sigma", attitude_noise_sigma_, 0.02);
   getParam<double>("acc_bias_noise_sigma", acc_bias_noise_sigma_, 0.0);
   getParam<double>("sample_freq", sample_freq_, 100.0);
   getParam<double>("cutoff_pos_freq", cutoff_pos_freq_, 20.0);

@@ -41,11 +41,10 @@
 #include <tf2/LinearMath/Vector3.h>
 
 /* Aerial robot packages */
-#include "aerial_robot_control/base/control_base.hpp"
 #include "aerial_robot_control/PID/pid.hpp"
+#include "aerial_robot_control/base/control_base.hpp"
 #include "aerial_robot_msgs/msg/pose_control_pid.hpp"
 #include "spinal_msgs/msg/flight_config_cmd.hpp"
-
 
 namespace aerial_robot_control
 {
@@ -86,8 +85,10 @@ protected:
 
   bool need_yaw_d_control_;
   bool start_roll_pitch_integration_;
-  double start_roll_pitch_integration_height_;  // Start integration inside PID controller of roll and pitch at [this
-                                                // height + estimator_->getLandingHeight()]
+  double start_roll_pitch_integration_height_;  // Start integration inside PID
+                                                // controller of roll and pitch at
+                                                // [this height +
+                                                // estimator_->getLandingHeight()]
 
   KDL::Vector pos_, target_pos_;
   KDL::Vector rpy_, target_rpy_;
@@ -99,6 +100,7 @@ protected:
   rcl_interfaces::msg::SetParametersResult parametersCallback(const std::vector<rclcpp::Parameter> &parameters);
   virtual void controlCore();
   virtual void sendCmd();
+  void updateSpinalPositionPidConfig();
   Eigen::MatrixXd getQInv();
 };
-}
+}  // namespace aerial_robot_control

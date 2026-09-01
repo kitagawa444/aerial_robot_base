@@ -24,6 +24,7 @@ find_package(aerial_robot_navigation REQUIRED)
 find_package(aerial_robot_model REQUIRED)
 find_package(aerial_robot_msgs REQUIRED)
 find_package(spinal REQUIRED)
+find_package(std_srvs REQUIRED)
 
 set(ROS_DEPENDENCIES
   rclcpp
@@ -35,6 +36,7 @@ set(ROS_DEPENDENCIES
   aerial_robot_model
   aerial_robot_msgs
   spinal
+  std_srvs
 )
 
 # --- Build control_utils library (CARE solver) ---

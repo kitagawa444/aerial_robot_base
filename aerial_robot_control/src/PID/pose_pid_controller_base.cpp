@@ -176,6 +176,8 @@ void PosePIDControllerBase::initialize(rclcpp::Node::SharedPtr node,
   pid_controllers_.push_back(
       PID("yaw", p_gain, i_gain, d_gain, limit_sum, limit_p, limit_i, limit_d, limit_err_p, limit_err_i, limit_err_d));
 
+  updateSpinalPositionPidConfig();
+
   // ------------------------------------------------------------------
   // Parameter-change callback
   // ------------------------------------------------------------------
@@ -186,6 +188,38 @@ void PosePIDControllerBase::initialize(rclcpp::Node::SharedPtr node,
   // Publisher
   // ------------------------------------------------------------------
   pid_pub_ = node_->create_publisher<aerial_robot_msgs::msg::PoseControlPid>("debug/pose/pid", 10);
+}
+
+void PosePIDControllerBase::updateSpinalPositionPidConfig()
+{
+  // Reuse the original PC-side PID definition verbatim when the outer
+  // position loop runs on spinal. This avoids a second, drifting set of
+  // controller gains and saturation parameters.
+  for (size_t axis = 0; axis < 3; ++axis)
+  {
+    const PID &pid = pid_controllers_.at(axis);
+    position_control_config_.position_p[axis] = pid.getPGain();
+    position_control_config_.position_i[axis] = pid.getIGain();
+    position_control_config_.velocity_d[axis] = pid.getDGain();
+    position_control_config_.limit_sum[axis] = pid.getLimitSum();
+    position_control_config_.limit_p[axis] = pid.getLimitP();
+    position_control_config_.limit_i[axis] = pid.getLimitI();
+    position_control_config_.limit_d[axis] = pid.getLimitD();
+    position_control_config_.limit_err_p[axis] = pid.getLimitErrP();
+    position_control_config_.integral_limit[axis] = pid.getLimitErrI();
+    position_control_config_.limit_err_d[axis] = pid.getLimitErrD();
+  }
+  const PID &yaw_pid = pid_controllers_.at(YAW);
+  position_control_config_.yaw_p = yaw_pid.getPGain();
+  position_control_config_.yaw_i = yaw_pid.getIGain();
+  position_control_config_.yaw_limit_sum = yaw_pid.getLimitSum();
+  position_control_config_.yaw_limit_err_p = yaw_pid.getLimitErrP();
+  position_control_config_.yaw_limit_err_i = yaw_pid.getLimitErrI();
+  position_control_config_.yaw_limit_err_d = yaw_pid.getLimitErrD();
+  position_control_config_.yaw_rate_feedback_on_spinal = !need_yaw_d_control_;
+  position_control_config_.start_roll_pitch_integration_height = start_roll_pitch_integration_height_;
+  position_control_config_.landing_err_z = landing_err_z_;
+  position_control_config_.safe_landing_height = safe_landing_height_;
 }
 
 void PosePIDControllerBase::reset()
@@ -206,7 +240,10 @@ bool PosePIDControllerBase::update()
 {
   if (!ControlBase::update()) return false;
 
-  // Only execute controller if the core gives the green light and sets the first timestamp
+  if (spinalPositionControl()) return true;
+
+  // Only execute controller if the core gives the green light and sets the
+  // first timestamp
   controlCore();
   sendCmd();
 
@@ -252,7 +289,8 @@ void PosePIDControllerBase::controlCore()
   switch (navigator_->getXyControlMode())
   {
     case aerial_robot_navigation::POS_CONTROL_MODE:
-      pid_controllers_.at(X).update(err_x, err_v_x, target_acc_.x(), dt);  // target_acc for feedforward term
+      pid_controllers_.at(X).update(err_x, err_v_x, target_acc_.x(),
+                                    dt);  // target_acc for feedforward term
       pid_controllers_.at(Y).update(err_y, err_v_y, target_acc_.y(), dt);
       break;
     case aerial_robot_navigation::VEL_CONTROL_MODE:
@@ -296,8 +334,8 @@ void PosePIDControllerBase::controlCore()
     else
     {
       // Zero out P-term in final safe landing phase
-      pid_controllers_.at(Z).setLimitP(0);  // TODO: does this make sense? Does this make the robot hover at landing
-                                            // height?
+      pid_controllers_.at(Z).setLimitP(0);  // TODO: does this make sense? Does this make the robot hover at
+                                            // landing height?
       final_landing_phase = true;
     }
   }
@@ -425,7 +463,8 @@ void PosePIDControllerBase::sendCmd() { pid_pub_->publish(pid_msg_); }
 
 // -------------------------------------------------------------------------
 // Helper function for child classes:
-// Compute the pseudo-inverse of the wrench allocation matrix Q for feedforward control
+// Compute the pseudo-inverse of the wrench allocation matrix Q for feedforward
+// control
 // -------------------------------------------------------------------------
 Eigen::MatrixXd PosePIDControllerBase::getQInv()
 {
@@ -516,7 +555,8 @@ rcl_interfaces::msg::SetParametersResult PosePIDControllerBase::parametersCallba
     else
     {
       auto iterator = name_to_idx.find(axis);
-      // "find()" returns "end()" if key not present / "->second" gets value from map entry
+      // "find()" returns "end()" if key not present / "->second" gets value
+      // from map entry
       if (iterator != name_to_idx.end()) indices = { iterator->second };
     }
 
@@ -624,7 +664,12 @@ rcl_interfaces::msg::SetParametersResult PosePIDControllerBase::parametersCallba
       continue;
     }
   }
+  if (result.successful && spinalPositionControl())
+  {
+    updateSpinalPositionPidConfig();
+    position_control_config_pub_->publish(position_control_config_);
+  }
   return result;
 }
 
-}
+}  // namespace aerial_robot_control

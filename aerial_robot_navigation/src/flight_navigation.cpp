@@ -113,6 +113,9 @@ void NavigationBase::initialize(rclcpp::Node::SharedPtr node,
   force_landing_sub_ = node_->create_subscription<std_msgs::msg::Empty>(
       "teleop_command/force_landing", rclcpp::SystemDefaultsQoS(),
       std::bind(&NavigationBase::forceLandingCallback, this, std::placeholders::_1));
+  rc_teleop_command_sub_ = node_->create_subscription<std_msgs::msg::UInt8>(
+      "rc/teleop_command", rclcpp::SystemDefaultsQoS(),
+      std::bind(&NavigationBase::rcTeleopCommandCallback, this, std::placeholders::_1));
 
   // Planning commands
   single_goal_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -869,12 +872,19 @@ void NavigationBase::flightStatusAckCallback(std_msgs::msg::UInt8::ConstSharedPt
   {
     // Arming off
     RCLCPP_INFO(NAV_LOGGER, "STOP RES From AERIAL ROBOT");
+    takeoff_prepared_ = false;
     setNaviState(ARM_OFF_STATE);
   }
 
   if (msg->data == spinal_msgs::msg::FlightConfigCmd::ARM_ON_CMD)
   {
-    // Arming on
+    // ARM can originate inside spinal through the direct RC safety path.  In
+    // that case navigation did not pass through motorArming(), so prepare the
+    // position/height targets here before accepting a later ROS TAKEOFF.
+    if (!takeoff_prepared_ && !prepareTakeoffTargets())
+    {
+      RCLCPP_WARN(NAV_LOGGER, "Armed by spinal, but navigation is not ready for takeoff");
+    }
     RCLCPP_INFO(NAV_LOGGER, "START RES From AERIAL ROBOT");
     setNaviState(ARM_ON_STATE);
   }
@@ -896,12 +906,22 @@ void NavigationBase::motorArming()
     return;
   }
 
+  if (!prepareTakeoffTargets()) return;
+
+  setNaviState(START_STATE);
+  RCLCPP_INFO(NAV_LOGGER, "Start state!");
+}
+
+bool NavigationBase::prepareTakeoffTargets()
+{
   /* Z(altitude) */
   /* Check whether there is the fusion for the altitude */
-  if (!estimator_->getBasePosStateStatus(State::Z, estimate_mode_))
+  const int altitude_status = estimator_->getBasePosStateStatus(State::Z, estimate_mode_);
+  if (!altitude_status)
   {
-    RCLCPP_ERROR(NAV_LOGGER, "No correct sensor fusion for z(altitude), can not fly");
-    return;
+    RCLCPP_ERROR(NAV_LOGGER, "No correct sensor fusion for z(altitude), can not fly (estimate mode: %d, status: %d)",
+                 estimate_mode_, altitude_status);
+    return false;
   }
 
   for (const auto &handler : estimator_->getGpsHandlers())
@@ -923,7 +943,8 @@ void NavigationBase::motorArming()
     }
   }
 
-  setNaviState(START_STATE);
+  estimator_->setSensorFusionFlag(true);
+  force_landing_flag_ = false;
   trajectory_mode_ = false;
   setTargetCogXyFromCurrentState();
   setTargetCogPosZ(takeoff_height_);
@@ -938,7 +959,8 @@ void NavigationBase::motorArming()
   target_xy_stream << "Target xy pos: [" << getTargetCogPos().x() << ", " << getTargetCogPos().y() << "]";
   RCLCPP_INFO_STREAM(NAV_LOGGER, target_xy_stream.str());
 
-  RCLCPP_INFO(NAV_LOGGER, "Start state!");
+  takeoff_prepared_ = true;
+  return true;
 }
 
 bool NavigationBase::spinalReadyForArming()
@@ -954,6 +976,12 @@ bool NavigationBase::spinalReadyForArming()
 void NavigationBase::startTakeoff()
 {
   if (getNaviState() == TAKEOFF_STATE) return;
+  if (getNaviState() != ARM_ON_STATE) return;
+  if (!takeoff_prepared_ && !prepareTakeoffTargets())
+  {
+    RCLCPP_ERROR(NAV_LOGGER, "Navigation targets are not ready; reject takeoff");
+    return;
+  }
 
   /* Check xy position error in initial state */
   double pos_x_error = getTargetCogPos().x() - estimator_->getCogPos(estimate_mode_).x();
@@ -1017,6 +1045,33 @@ void NavigationBase::forceLandingCallback(std_msgs::msg::Empty::ConstSharedPtr m
   force_landing_flag_ = true;
 
   RCLCPP_INFO(NAV_LOGGER, "Force Landing state!");
+}
+
+void NavigationBase::rcTeleopCommandCallback(std_msgs::msg::UInt8::ConstSharedPtr msg)
+{
+  if (!msg) return;
+
+  // Only navigation-owned commands cross ROS. ARM, FORCE_LANDING and HALT are
+  // applied directly inside spinal; their flight_config_ack messages merely
+  // synchronize navigation state when ROS is available.
+  constexpr uint8_t RC_TAKEOFF = 2U;
+  constexpr uint8_t RC_LAND = 3U;
+
+  switch (msg->data)
+  {
+    case RC_TAKEOFF:
+      if (getNaviState() == ARM_ON_STATE) startTakeoff();
+      break;
+    case RC_LAND:
+      if (getNaviState() != LAND_STATE)
+      {
+        landCallback(std_msgs::msg::Empty::ConstSharedPtr{});
+      }
+      break;
+    default:
+      RCLCPP_WARN(NAV_LOGGER, "Unexpected ROS-routed RC command: %u", msg->data);
+      break;
+  }
 }
 
 void NavigationBase::stopTeleopCallback(std_msgs::msg::UInt8::ConstSharedPtr msg)
@@ -1144,6 +1199,7 @@ void NavigationBase::reset()
   estimator_->setFlyingFlag(false);
 
   trajectory_mode_ = false;
+  takeoff_prepared_ = false;
   init_height_ = 0;
   land_height_ = 0;
 }
@@ -1257,12 +1313,11 @@ void NavigationBase::generateNewTrajectory(std::vector<geometry_msgs::msg::PoseS
   agi::QuadState end_state = states.back();
   double dur = end_state.t - start_state.t;
   std::ostringstream trajectory_stream;
-  trajectory_stream
-      << "Receive the new target pose of " << end_state.p.transpose() << " (yaw: " << end_state.getYaw() << ")"
-      << " which starts with the last target pose: " << start_state.p.transpose() << " (yaw: " << start_state.getYaw()
-      << ")"
-      << " and target vel: " << start_state.v.transpose() << " (omega z: " << start_state.w(2) << ")"
-      << " and target acc: " << start_state.a.transpose() << " and flight duration: " << dur;
+  trajectory_stream << "Receive the new target pose of " << end_state.p.transpose() << " (yaw: " << end_state.getYaw()
+                    << ")" << " which starts with the last target pose: " << start_state.p.transpose()
+                    << " (yaw: " << start_state.getYaw() << ")" << " and target vel: " << start_state.v.transpose()
+                    << " (omega z: " << start_state.w(2) << ")" << " and target acc: " << start_state.a.transpose()
+                    << " and flight duration: " << dur;
   RCLCPP_INFO_STREAM(NAV_LOGGER, trajectory_stream.str());
 
   traj_generator_ptr_ = std::make_shared<agi::MinJerkTrajectory>(states);
