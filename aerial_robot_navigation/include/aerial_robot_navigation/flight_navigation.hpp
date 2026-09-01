@@ -34,28 +34,28 @@
 #pragma once
 
 /* ROS 2 */
-#include <rclcpp/rclcpp.hpp>
 #include <angles/angles.h>
+#include <geodesy/utm.h>
+#include <geographic_msgs/msg/geo_point.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <nav_msgs/msg/path.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joy.hpp>
 #include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/int8.hpp>
 #include <std_msgs/msg/u_int8.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geodesy/utm.h>
-#include <geographic_msgs/msg/geo_point.hpp>
-#include <sensor_msgs/msg/joy.hpp>
-#include <nav_msgs/msg/path.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 /* Aerial robot packages */
-#include "aerial_robot_estimation/state_estimation.h"
 #include "aerial_robot_estimation/sensor/base_plugin.h"
+#include "aerial_robot_estimation/state_estimation.h"
+#include "aerial_robot_msgs/msg/flight_nav.hpp"
 #include "aerial_robot_navigation/trajectory/trajectory_reference/polynomial_trajectory.hpp"
 #include "aerial_robot_navigation/util/joy_parser.hpp"
-#include "aerial_robot_msgs/msg/flight_nav.hpp"
 #include "spinal_msgs/msg/flight_config_cmd.hpp"
+#include "spinal_msgs/msg/flight_status.hpp"
 #include "spinal_msgs/msg/pwms.hpp"
-
 
 namespace aerial_robot_navigation
 {
@@ -206,6 +206,7 @@ protected:
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr battery_sub_;
   rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr flight_status_ack_sub_, stop_teleop_sub_;
+  rclcpp::Subscription<spinal_msgs::msg::FlightStatus>::SharedPtr fc_flight_status_sub_;
   rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr rc_teleop_command_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr takeoff_sub_, start_sub_, land_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr force_landing_sub_, halt_sub_;
@@ -251,10 +252,14 @@ protected:
   double land_pos_convergent_thresh_;
   double land_vel_convergent_thresh_;
   bool require_spinal_ready_for_arm_;
+  bool spinal_position_control_;
   bool spinal_ready_seen_;
   bool takeoff_prepared_{ false };
   double spinal_ready_timeout_;
   double last_spinal_msg_time_;
+  uint32_t last_fc_command_sequence_{ 0U };
+  bool fc_status_received_{ false };
+  spinal_msgs::msg::FlightStatus last_fc_status_{};
 
   KDL::Vector target_pos_, target_vel_, target_acc_;
   KDL::Vector target_rpy_, target_omega_, target_ang_acc_;
@@ -295,7 +300,8 @@ protected:
   /* Auto velocity navigation */
   bool vel_based_waypoint_;
   double nav_vel_limit_;
-  double vel_nav_threshold_;  // The range (board) to switch between vel_nav and pos_nav
+  double vel_nav_threshold_;  // The range (board) to switch between vel_nav and
+                              // pos_nav
   double vel_nav_gain_;
 
   /* Battery info */
@@ -313,6 +319,7 @@ protected:
   virtual void naviCallback(const aerial_robot_msgs::msg::FlightNav::ConstSharedPtr msg);
   virtual void joyStickControl(const sensor_msgs::msg::Joy::ConstSharedPtr joy_msg);
   void flightStatusAckCallback(std_msgs::msg::UInt8::ConstSharedPtr msg);
+  void fcFlightStatusCallback(spinal_msgs::msg::FlightStatus::ConstSharedPtr msg);
   void startCallback(std_msgs::msg::Empty::ConstSharedPtr msg) { motorArming(); }
   void takeoffCallback(std_msgs::msg::Empty::ConstSharedPtr msg) { startTakeoff(); }
   void landCallback(std_msgs::msg::Empty::ConstSharedPtr msg);
@@ -333,6 +340,7 @@ protected:
   void motorArming();
   bool prepareTakeoffTargets();
   bool spinalReadyForArming();
+  void publishFlightState();
   virtual void updateLandCommand();
 
   void setTargetCogXyFromCurrentState();
@@ -364,4 +372,4 @@ protected:
     }
   }
 };
-}
+}  // namespace aerial_robot_navigation
