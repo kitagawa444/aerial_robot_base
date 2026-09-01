@@ -39,6 +39,7 @@
 #include "aerial_robot_navigation/flight_navigation.hpp"
 #include "spinal_msgs/msg/pwm_info.hpp"
 #include "spinal_msgs/msg/position_control_config.hpp"
+#include "spinal_msgs/msg/health_config.hpp"
 #include "spinal_msgs/msg/position_control_setpoint.hpp"
 #include "spinal_msgs/msg/uav_info.hpp"
 #include "std_srvs/srv/set_bool.hpp"
@@ -71,6 +72,7 @@ protected:
   rclcpp::Publisher<spinal_msgs::msg::PwmInfo>::SharedPtr motor_info_pub_;
   rclcpp::Publisher<spinal_msgs::msg::UavInfo>::SharedPtr uav_info_pub_;
   rclcpp::Publisher<spinal_msgs::msg::PositionControlConfig>::SharedPtr position_control_config_pub_;
+  rclcpp::Publisher<spinal_msgs::msg::HealthConfig>::SharedPtr health_config_pub_;
   rclcpp::Publisher<spinal_msgs::msg::PositionControlSetpoint>::SharedPtr position_control_setpoint_pub_;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr position_control_client_;
 
@@ -102,6 +104,7 @@ protected:
   bool position_control_enabled_on_spinal_{ false };
   double position_control_request_stamp_{ -1.0 };
   spinal_msgs::msg::PositionControlConfig position_control_config_;
+  spinal_msgs::msg::HealthConfig health_config_;
 
   bool spinalPositionControl() const { return spinal_position_control_; }
   void publishPositionControlSetpoint();
