@@ -1734,12 +1734,11 @@ void NavigationBase::generateNewTrajectory(std::vector<geometry_msgs::msg::PoseS
   agi::QuadState end_state = states.back();
   double dur = end_state.t - start_state.t;
   std::ostringstream trajectory_stream;
-  trajectory_stream
-      << "Receive the new target pose of " << end_state.p.transpose() << " (yaw: " << end_state.getYaw() << ")"
-      << " which starts with the last target pose: " << start_state.p.transpose() << " (yaw: " << start_state.getYaw()
-      << ")"
-      << " and target vel: " << start_state.v.transpose() << " (omega z: " << start_state.w(2) << ")"
-      << " and target acc: " << start_state.a.transpose() << " and flight duration: " << dur;
+  trajectory_stream << "Receive the new target pose of " << end_state.p.transpose() << " (yaw: " << end_state.getYaw()
+                    << ")" << " which starts with the last target pose: " << start_state.p.transpose()
+                    << " (yaw: " << start_state.getYaw() << ")" << " and target vel: " << start_state.v.transpose()
+                    << " (omega z: " << start_state.w(2) << ")" << " and target acc: " << start_state.a.transpose()
+                    << " and flight duration: " << dur;
   RCLCPP_INFO_STREAM(NAV_LOGGER, trajectory_stream.str());
 
   traj_generator_ptr_ = std::make_shared<agi::MinJerkTrajectory>(states);

@@ -22,10 +22,7 @@ def generate_launch_description():
     # ------------------------------------------------------------------
     declared_args = [
         DeclareLaunchArgument(
-            name,
-            default_value=default_value,
-            description=description,
-            **({"choices": choices[0]} if choices else {})
+            name, default_value=default_value, description=description, **({"choices": choices[0]} if choices else {})
         )
         for name, default_value, description, *choices in _ARGS
     ]

@@ -23,9 +23,7 @@ class ParameterDatabaseClient(Node):
 
 
 def main(args=None):
-    parser = argparse.ArgumentParser(
-        description="Inspect or update the Spinal flight parameter database"
-    )
+    parser = argparse.ArgumentParser(description="Inspect or update the Spinal flight parameter database")
     parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("--service", default="/fc/parameters")
     parser.add_argument("--timeout", type=float, default=5.0)
