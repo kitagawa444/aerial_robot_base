@@ -5,12 +5,14 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 # ---------------------------------------------------------------------------
 # Argument declarations  (name, default, description, (optional) choices)
 # ---------------------------------------------------------------------------
 _ARGS = [
     ("robot_ns", "/", "Namespace for all robot nodes"),
+    ("heartbeat_rate_hz", "2.0", "GCS-to-FC health heartbeat rate"),
 ]
 
 
@@ -20,13 +22,17 @@ def generate_launch_description():
     # ------------------------------------------------------------------
     declared_args = [
         DeclareLaunchArgument(
-            name, default_value=default_value, description=description, **({"choices": choices[0]} if choices else {})
+            name,
+            default_value=default_value,
+            description=description,
+            **({"choices": choices[0]} if choices else {})
         )
         for name, default_value, description, *choices in _ARGS
     ]
 
     # Resolve / Read at launch time (NOT AT IMPORT TIME)
     robot_ns = LaunchConfiguration("robot_ns")
+    heartbeat_rate_hz = LaunchConfiguration("heartbeat_rate_hz")
 
     # ------------------------------------------------------------------
     # 2.  Nodes
@@ -45,6 +51,15 @@ def generate_launch_description():
         ],
     )
 
+    heartbeat_node = Node(
+        package="aerial_robot_core",
+        executable="network_heartbeat.py",
+        name="network_heartbeat",
+        namespace=robot_ns,
+        output="screen",
+        parameters=[{"rate_hz": ParameterValue(heartbeat_rate_hz, value_type=float)}],
+    )
+
     # ------------------------------------------------------------------
     # 3.  Assemble LaunchDescription
     # ------------------------------------------------------------------
@@ -54,4 +69,5 @@ def generate_launch_description():
         ld.add_action(arg)
 
     ld.add_action(joy_node)
+    ld.add_action(heartbeat_node)
     return ld
