@@ -61,6 +61,7 @@ install(PROGRAMS
   scripts/flight_demo.py
   scripts/optitrack_mocap_node.py
   scripts/network_heartbeat.py
+  scripts/spinal_parameter_database.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

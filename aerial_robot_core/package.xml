@@ -16,6 +16,7 @@
   <depend>std_srvs</depend>
   <depend>joy</depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>spinal_msgs</exec_depend>
   <exec_depend>ros2launch</exec_depend>
   <exec_depend>ros2_numpy</exec_depend>
   <exec_depend>smach</exec_depend>
