@@ -16,6 +16,8 @@
         max_tilt_angle: 0.7
         setpoint_timeout_ms: 500
         rc_timeout_ms: 100
+        takeoff_velocity_tolerance: 0.2
+        rc_authority_timeout_ms: 500
 
       hovering_approximate: false
       torque_allocation_matrix_inv_pub_interval: 0.05

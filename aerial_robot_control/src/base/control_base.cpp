@@ -47,6 +47,7 @@ void ControlBase::initialize(rclcpp::Node::SharedPtr node, std::shared_ptr<aeria
   uav_info_pub_ = node_->create_publisher<spinal_msgs::msg::UavInfo>("uav_info", 10);
   position_control_config_pub_ = node_->create_publisher<spinal_msgs::msg::PositionControlConfig>(
       "position_control/config", 1);
+  health_config_pub_ = node_->create_publisher<spinal_msgs::msg::HealthConfig>("health/config", 1);
   position_control_setpoint_pub_ = node_->create_publisher<spinal_msgs::msg::PositionControlSetpoint>(
       "position_control/setpoint", 1);
   std::string position_control_service_name;
@@ -113,6 +114,44 @@ void ControlBase::initialize(rclcpp::Node::SharedPtr node, std::shared_ptr<aeria
   int rc_timeout_ms = 100;
   getParam<int>("controller.position_control.rc_timeout_ms", rc_timeout_ms, 100);
   position_control_config_.rc_timeout_ms = static_cast<uint32_t>(std::max(rc_timeout_ms, 1));
+  get_float_param("navigation.takeoff_height", position_control_config_.takeoff_height, 1.0);
+  get_float_param("navigation.z_convergent_thresh", position_control_config_.takeoff_position_tolerance, 0.05);
+  get_float_param("navigation.land_descend_vel", position_control_config_.landing_speed, -0.3);
+  get_float_param("navigation.land_pos_convergent_thresh", position_control_config_.landed_height, 0.02);
+  get_float_param("navigation.land_vel_convergent_thresh", position_control_config_.landed_velocity, 0.05);
+  get_float_param("controller.position_control.takeoff_velocity_tolerance",
+                  position_control_config_.takeoff_velocity_tolerance, 0.2);
+  double takeoff_stable_time = 1.0;
+  getParam<double>("navigation.hover_convergent_duration", takeoff_stable_time, 1.0);
+  position_control_config_.takeoff_stable_time_ms = static_cast<uint32_t>(std::max(takeoff_stable_time * 1000.0, 1.0));
+  double landed_stable_time = 0.5;
+  getParam<double>("navigation.land_check_duration", landed_stable_time, 0.5);
+  position_control_config_.landed_stable_time_ms = static_cast<uint32_t>(std::max(landed_stable_time * 1000.0, 1.0));
+  int rc_authority_timeout_ms = 500;
+  getParam<int>("controller.position_control.rc_authority_timeout_ms", rc_authority_timeout_ms, 500);
+  position_control_config_.rc_authority_timeout_ms = static_cast<uint32_t>(std::max(rc_authority_timeout_ms, 1));
+
+  int battery_cell_count = 0;
+  getParam<int>("bat_info.bat_cell", battery_cell_count, 0);
+  health_config_.battery_cell_count = static_cast<uint8_t>(std::max(0, std::min(battery_cell_count, 255)));
+  get_float_param("bat_info.low_voltage_thre", health_config_.battery_low_percentage, 6.0);
+  get_float_param("bat_info.low_voltage_hysteresis", health_config_.battery_hysteresis_percentage, 2.0);
+  get_float_param("bat_info.high_voltage_cell_thre", health_config_.battery_high_cell_threshold, 1.0);
+  get_float_param("bat_info.bat_resistance", health_config_.battery_resistance, 0.0);
+  get_float_param("bat_info.bat_resistance_voltage_rate", health_config_.battery_resistance_voltage_rate, 0.0);
+  get_float_param("bat_info.hovering_current", health_config_.battery_hovering_current, 0.0);
+  int battery_debounce_ms = 1000;
+  getParam<int>("bat_info.low_voltage_debounce_ms", battery_debounce_ms, 1000);
+  health_config_.battery_debounce_ms = static_cast<uint32_t>(std::max(battery_debounce_ms, 1));
+  int primary_imu_timeout_ms = 100;
+  getParam<int>("health.primary_imu_timeout_ms", primary_imu_timeout_ms, 100);
+  health_config_.primary_imu_timeout_ms = static_cast<uint32_t>(std::max(primary_imu_timeout_ms, 1));
+  int control_loop_deadline_ms = 20;
+  getParam<int>("health.control_loop_deadline_ms", control_loop_deadline_ms, 20);
+  health_config_.control_loop_deadline_ms = static_cast<uint32_t>(std::max(control_loop_deadline_ms, 1));
+  int control_loop_miss_limit = 3;
+  getParam<int>("health.control_loop_miss_limit", control_loop_miss_limit, 3);
+  health_config_.control_loop_miss_limit = static_cast<uint8_t>(std::max(1, std::min(control_loop_miss_limit, 255)));
   if (motor_num_ > 0)
   {
     const float acceleration_to_thrust = static_cast<float>(robot_model_->getMass() / static_cast<double>(motor_num_));
@@ -155,7 +194,6 @@ bool ControlBase::update()
   if (spinal_position_control_)
   {
     requestPositionControlMode();
-    publishPositionControlSetpoint();
   }
 
   if (navigator_->getNaviState() == aerial_robot_navigation::ARM_OFF_STATE && control_timestamp_ > 0)
@@ -198,6 +236,7 @@ void ControlBase::activate()
     uav_info_msg.motor_num = motor_num_;
     uav_info_msg.uav_model = uav_model_;
     uav_info_pub_->publish(uav_info_msg);
+    health_config_pub_->publish(health_config_);
 
     if (spinal_position_control_)
     {
@@ -233,7 +272,9 @@ void ControlBase::publishPositionControlSetpoint()
   msg.yaw_acceleration = angular_acceleration.z();
   msg.initial_height = navigator_->getInitHeight();
   msg.horizontal_control_mode = navigator_->getXyControlMode();
-  msg.active = navigator_->isInflightState();
+  // Basic takeoff and landing setpoints are generated by the FC supervisor.
+  // ROS setpoints become authoritative only after the FC reports AIRBORNE.
+  msg.active = navigator_->getNaviState() == aerial_robot_navigation::HOVER_STATE;
   msg.manual_control_allowed = navigator_->getNaviState() == aerial_robot_navigation::HOVER_STATE;
   msg.landing = navigator_->getNaviState() == aerial_robot_navigation::LAND_STATE;
   position_control_setpoint_pub_->publish(msg);

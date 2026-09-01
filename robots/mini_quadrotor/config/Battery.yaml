@@ -5,5 +5,11 @@
       bat_resistance: 0.05
       hovering_current: 22.0
       low_voltage_thre: 6.0
+      low_voltage_hysteresis: 2.0
+      low_voltage_debounce_ms: 1000
       high_voltage_cell_thre: 1.0
       bat_resistance_voltage_rate: 0.0
+    health:
+      primary_imu_timeout_ms: 100
+      control_loop_deadline_ms: 20
+      control_loop_miss_limit: 3

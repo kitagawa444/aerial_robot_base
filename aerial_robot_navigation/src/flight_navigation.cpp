@@ -39,6 +39,201 @@ namespace aerial_robot_navigation
 {
 static const rclcpp::Logger NAV_LOGGER = rclcpp::get_logger("Navigation");
 
+namespace
+{
+const char *flightCommandName(uint8_t command)
+{
+  switch (command)
+  {
+    case spinal_msgs::msg::FlightConfigCmd::ARM_ON_CMD:
+      return "ARM";
+    case spinal_msgs::msg::FlightConfigCmd::ARM_OFF_CMD:
+      return "DISARM";
+    case spinal_msgs::msg::FlightConfigCmd::FORCE_LANDING_CMD:
+      return "FORCE_LAND";
+    case spinal_msgs::msg::FlightConfigCmd::TAKEOFF_CMD:
+      return "TAKEOFF";
+    case spinal_msgs::msg::FlightConfigCmd::LAND_CMD:
+      return "LAND";
+    case spinal_msgs::msg::FlightConfigCmd::HALT_CMD:
+      return "HALT";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *commandSourceName(uint8_t source)
+{
+  switch (source)
+  {
+    case spinal_msgs::msg::FlightStatus::AUTHORITY_ROS:
+      return "ROS";
+    case spinal_msgs::msg::FlightStatus::AUTHORITY_RC:
+      return "RC";
+    case spinal_msgs::msg::FlightStatus::AUTHORITY_INTERNAL:
+      return "INTERNAL";
+    case spinal_msgs::msg::FlightStatus::AUTHORITY_FAILSAFE:
+      return "FAILSAFE";
+    default:
+      return "NONE";
+  }
+}
+
+const char *commandResultName(uint8_t result)
+{
+  switch (result)
+  {
+    case spinal_msgs::msg::FlightStatus::RESULT_ACCEPTED:
+      return "ACCEPTED";
+    case spinal_msgs::msg::FlightStatus::RESULT_UNSUPPORTED:
+      return "UNSUPPORTED";
+    case spinal_msgs::msg::FlightStatus::RESULT_ALREADY_IN_STATE:
+      return "ALREADY_IN_STATE";
+    case spinal_msgs::msg::FlightStatus::RESULT_NOT_ARMED:
+      return "NOT_ARMED";
+    case spinal_msgs::msg::FlightStatus::RESULT_NOT_LANDED:
+      return "NOT_LANDED";
+    case spinal_msgs::msg::FlightStatus::RESULT_ATTITUDE_NOT_READY:
+      return "ATTITUDE_NOT_READY";
+    case spinal_msgs::msg::FlightStatus::RESULT_POSITION_NOT_READY:
+      return "POSITION_NOT_READY";
+    case spinal_msgs::msg::FlightStatus::RESULT_IN_AIR:
+      return "IN_AIR";
+    case spinal_msgs::msg::FlightStatus::RESULT_HEALTH_INHIBIT:
+      return "HEALTH_INHIBIT";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *armingStateName(uint8_t state)
+{
+  return state == spinal_msgs::msg::FlightStatus::ARMING_ARMED ? "ARMED" : "DISARMED";
+}
+
+const char *flightPhaseName(uint8_t phase)
+{
+  switch (phase)
+  {
+    case spinal_msgs::msg::FlightStatus::PHASE_LANDED:
+      return "LANDED";
+    case spinal_msgs::msg::FlightStatus::PHASE_TAKING_OFF:
+      return "TAKING_OFF";
+    case spinal_msgs::msg::FlightStatus::PHASE_AIRBORNE:
+      return "AIRBORNE";
+    case spinal_msgs::msg::FlightStatus::PHASE_LANDING:
+      return "LANDING";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *controlModeName(uint8_t mode)
+{
+  switch (mode)
+  {
+    case spinal_msgs::msg::FlightStatus::MODE_IDLE:
+      return "IDLE";
+    case spinal_msgs::msg::FlightStatus::MODE_ATTITUDE:
+      return "ATTITUDE";
+    case spinal_msgs::msg::FlightStatus::MODE_POSITION:
+      return "POSITION";
+    case spinal_msgs::msg::FlightStatus::MODE_TAKEOFF:
+      return "TAKEOFF";
+    case spinal_msgs::msg::FlightStatus::MODE_LAND:
+      return "LAND";
+    case spinal_msgs::msg::FlightStatus::MODE_FORCE_LAND:
+      return "FORCE_LAND";
+    case spinal_msgs::msg::FlightStatus::MODE_TERMINATED:
+      return "TERMINATED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *failsafeName(uint8_t failsafe)
+{
+  switch (failsafe)
+  {
+    case spinal_msgs::msg::FlightStatus::FAILSAFE_NONE:
+      return "NONE";
+    case spinal_msgs::msg::FlightStatus::FAILSAFE_FORCE_LAND:
+      return "FORCE_LAND";
+    case spinal_msgs::msg::FlightStatus::FAILSAFE_TERMINATED:
+      return "TERMINATED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *transitionReasonName(uint8_t reason)
+{
+  switch (reason)
+  {
+    case spinal_msgs::msg::FlightStatus::TRANSITION_NONE:
+      return "NONE";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_COMMAND_ACCEPTED:
+      return "COMMAND_ACCEPTED";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_TAKEOFF_COMPLETE:
+      return "TAKEOFF_COMPLETE";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_LANDING_COMPLETE:
+      return "LANDING_COMPLETE";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_POSITION_LOST:
+      return "POSITION_LOST";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_CONTROLLER_FORCE_LAND:
+      return "CONTROLLER_FORCE_LAND";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_HEALTH_FORCE_LAND:
+      return "HEALTH_FORCE_LAND";
+    case spinal_msgs::msg::FlightStatus::TRANSITION_HEALTH_TERMINATE:
+      return "HEALTH_TERMINATE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *healthActionName(uint8_t action)
+{
+  switch (action)
+  {
+    case spinal_msgs::msg::HealthReport::ACTION_NONE:
+      return "NONE";
+    case spinal_msgs::msg::HealthReport::ACTION_INHIBIT_ARM:
+      return "INHIBIT_ARM";
+    case spinal_msgs::msg::HealthReport::ACTION_FORCE_LAND:
+      return "FORCE_LAND";
+    case spinal_msgs::msg::HealthReport::ACTION_TERMINATE:
+      return "TERMINATE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *healthComponentName(uint8_t component)
+{
+  switch (component)
+  {
+    case spinal_msgs::msg::HealthReport::COMPONENT_FLIGHT:
+      return "FLIGHT";
+    case spinal_msgs::msg::HealthReport::COMPONENT_LINK:
+      return "LINK";
+    case spinal_msgs::msg::HealthReport::COMPONENT_POWER:
+      return "POWER";
+    case spinal_msgs::msg::HealthReport::COMPONENT_SENSOR:
+      return "SENSOR";
+    case spinal_msgs::msg::HealthReport::COMPONENT_ESTIMATION:
+      return "ESTIMATION";
+    case spinal_msgs::msg::HealthReport::COMPONENT_ACTUATOR:
+      return "ACTUATOR";
+    case spinal_msgs::msg::HealthReport::COMPONENT_COMPUTE:
+      return "COMPUTE";
+    case spinal_msgs::msg::HealthReport::COMPONENT_CONFIG:
+      return "CONFIG";
+    default:
+      return "UNKNOWN";
+  }
+}
+}  // namespace
+
 NavigationBase::NavigationBase()
   : target_pos_(0, 0, 0),
     target_vel_(0, 0, 0),
@@ -65,6 +260,7 @@ NavigationBase::NavigationBase()
     force_landing_flag_(false),
     land_check_start_time_(0),
     require_spinal_ready_for_arm_(false),
+    spinal_position_control_(false),
     spinal_ready_seen_(false),
     spinal_ready_timeout_(1.0),
     last_spinal_msg_time_(0.0)
@@ -90,6 +286,9 @@ void NavigationBase::initialize(rclcpp::Node::SharedPtr node,
   flight_status_ack_sub_ = node_->create_subscription<std_msgs::msg::UInt8>(
       "flight_config_ack", rclcpp::SystemDefaultsQoS(),
       std::bind(&NavigationBase::flightStatusAckCallback, this, std::placeholders::_1));
+  fc_flight_status_sub_ = node_->create_subscription<spinal_msgs::msg::FlightStatus>(
+      "fc/flight_status", rclcpp::SystemDefaultsQoS(),
+      std::bind(&NavigationBase::fcFlightStatusCallback, this, std::placeholders::_1));
   battery_sub_ = node_->create_subscription<std_msgs::msg::Float32>(
       "battery_voltage_status", rclcpp::SystemDefaultsQoS(),
       std::bind(&NavigationBase::batteryCheckCallback, this, std::placeholders::_1));
@@ -147,6 +346,14 @@ void NavigationBase::initialize(rclcpp::Node::SharedPtr node,
 
 void NavigationBase::update()
 {
+  if (spinal_position_control_)
+  {
+    // The FC owns estimation health, basic-flight targets, flight phase and
+    // failsafe decisions. Navigation only mirrors its status in this mode.
+    publishFlightState();
+    return;
+  }
+
   if (force_att_control_flag_)
   {
     if (getNaviState() == LAND_STATE)
@@ -158,7 +365,8 @@ void NavigationBase::update()
   }
   else
   {
-    /* Check the xy estimation status, if not ready, change to att_control_mode */
+    /* Check the xy estimation status, if not ready, change to att_control_mode
+     */
     if (!estimator_->getBasePosStateStatus(State::X, estimate_mode_) ||
         !estimator_->getBasePosStateStatus(State::Y, estimate_mode_))
     {
@@ -173,14 +381,14 @@ void NavigationBase::update()
     {
       if (xy_control_mode_ == ACC_CONTROL_MODE && prev_xy_control_mode_ != ACC_CONTROL_MODE)
       {
-        RCLCPP_INFO(NAV_LOGGER, "Estimation for X, Y state is established, switching back to the xy control mode");
+        RCLCPP_INFO(NAV_LOGGER,
+                    "Estimation for X, Y state is established, "
+                    "switching back to the xy control mode");
         xy_control_mode_ = prev_xy_control_mode_;
       }
 
-      RCLCPP_INFO_STREAM_ONCE(
-          NAV_LOGGER,
-          std::string(
-              "\033[32m\n \n ======================  \n Ready for Takeoff !!! \n ====================== \n \033[0m"));
+      RCLCPP_INFO_STREAM_ONCE(NAV_LOGGER, std::string("\033[32m\n \n ======================  \n Ready for "
+                                                      "Takeoff !!! \n ====================== \n \033[0m"));
     }
   }
 
@@ -207,7 +415,9 @@ void NavigationBase::update()
         node_->get_clock()->now().seconds() - joy_stick_prev_time_ > joy_stick_heart_beat_duration_)
     {
       normal_land = true;
-      RCLCPP_ERROR(NAV_LOGGER, "Normal Landing: attitude control mode, because joystick connection timed out!");
+      RCLCPP_ERROR(NAV_LOGGER,
+                   "Normal Landing: attitude control mode, because "
+                   "joystick connection timed out!");
     }
 
     /* Low voltage flag */
@@ -298,9 +508,8 @@ void NavigationBase::update()
       {
         hover_convergent_start_time_ = now_time;
         setNaviState(HOVER_STATE);
-        RCLCPP_INFO_STREAM(
-            NAV_LOGGER,
-            std::string("\033[32m \n \n ======================  \n Hover !!! \n ====================== \n \033[0m"));
+        RCLCPP_INFO_STREAM(NAV_LOGGER, std::string("\033[32m \n \n ======================  \n Hover !!! \n "
+                                                   "====================== \n \033[0m"));
       }
       break;
     }
@@ -317,7 +526,9 @@ void NavigationBase::update()
 
         if (fabs(delta) < land_pos_convergent_thresh_ && vel > -land_vel_convergent_thresh_)
         {
-          RCLCPP_INFO(NAV_LOGGER, "\n \n ======================  \n Land !!! \n ====================== \n");
+          RCLCPP_INFO(NAV_LOGGER,
+                      "\n \n ======================  \n Land !!! \n "
+                      "====================== \n");
           RCLCPP_INFO(NAV_LOGGER, "Start disarming motors");
           setNaviState(STOP_STATE);
         }
@@ -356,7 +567,9 @@ void NavigationBase::update()
           if (gps_waypoint_)
           {
             KDL::Vector gps_waypoint_delta = getDeltaPosFromGpsWaypoint();
-            RCLCPP_WARN(NAV_LOGGER, "Back to position navigation control for GPS waypoint, GPS waypoint delta: %f, %f",
+            RCLCPP_WARN(NAV_LOGGER,
+                        "Back to position navigation control for GPS waypoint, "
+                        "GPS waypoint delta: %f, %f",
                         gps_waypoint_delta.x(), gps_waypoint_delta.y());
             gps_waypoint_ = false;
           }
@@ -392,12 +605,16 @@ void NavigationBase::update()
     }
   }
 
-  /* Publish the state */
+  publishFlightState();
+}
+
+void NavigationBase::publishFlightState()
+{
   std_msgs::msg::UInt8 state_msg;
   state_msg.data = getNaviState();
   if (force_landing_flag_)
     state_msg.data = FORCE_LANDING_STATE;
-  else if (low_voltage_flag_)
+  else if (!spinal_position_control_ && low_voltage_flag_)
     state_msg.data = LOW_BATTERY_STATE;
   flight_state_pub_->publish(state_msg);
 }
@@ -414,6 +631,7 @@ bool NavigationBase::isInflightState()
 void NavigationBase::rosParamInit()
 {
   getParam<bool>("param_verbose", param_verbose_, false);
+  node_->get_parameter_or<bool>("controller.spinal_position_control", spinal_position_control_, false);
 
   getParam<double>("takeoff_height", takeoff_height_, 0.0);
   getParam<double>("land_descend_vel", land_descend_vel_, -0.3);
@@ -431,7 +649,9 @@ void NavigationBase::rosParamInit()
   getParam<double>("land_check_duration", land_check_duration_, 0.5);
   if (land_check_duration_ < 0.5)
   {
-    RCLCPP_WARN(NAV_LOGGER, "land_check_duration_ (current value: %f) should be not smaller than 0.5",
+    RCLCPP_WARN(NAV_LOGGER,
+                "land_check_duration_ (current value: %f) should be not "
+                "smaller than 0.5",
                 land_check_duration_);
     land_check_duration_ = 0.5;
   }
@@ -476,17 +696,21 @@ void NavigationBase::rosParamInit()
   getParam<double>("vel_nav_gain", vel_nav_gain_, 1.0);
 
   // Battery info
-  getParam<int>("bat_info.bat_cell", bat_cell_, 0);                       // LiPo battery cell
-  getParam<double>("bat_info.low_voltage_thre", low_voltage_thre_, 0.1);  // LiPo battery cell
+  getParam<int>("bat_info.bat_cell", bat_cell_, 0);  // LiPo battery cell
+  getParam<double>("bat_info.low_voltage_thre", low_voltage_thre_,
+                   0.1);  // LiPo battery cell
   getParam<double>("bat_info.high_voltage_cell_thre", high_voltage_cell_thre_, 1.0);
-  getParam<double>("bat_info.bat_resistance", bat_resistance_, 0.0);  // Battery internal resistance
+  getParam<double>("bat_info.bat_resistance", bat_resistance_,
+                   0.0);  // Battery internal resistance
   getParam<double>("bat_info.bat_resistance_voltage_rate", bat_resistance_voltage_rate_,
-                   0.0);                                                  // Battery internal resistance voltage rate
-  getParam<double>("bat_info.hovering_current", hovering_current_, 0.0);  // Current at hovering state
+                   0.0);  // Battery internal resistance voltage rate
+  getParam<double>("bat_info.hovering_current", hovering_current_,
+                   0.0);  // Current at hovering state
 }
 
 void NavigationBase::naviCallback(const aerial_robot_msgs::msg::FlightNav::ConstSharedPtr msg)
 {
+  if (spinal_position_control_) return;
   if (getNaviState() != HOVER_STATE) return;
 
   gps_waypoint_ = false;  // Force reset GPS mode
@@ -634,6 +858,10 @@ void NavigationBase::naviCallback(const aerial_robot_msgs::msg::FlightNav::Const
 
 void NavigationBase::joyStickControl(const sensor_msgs::msg::Joy::ConstSharedPtr msg)
 {
+  // Direct RC is decoded and applied by the FC. Keeping the ROS joystick path
+  // active here would create a second command and setpoint authority.
+  if (spinal_position_control_) return;
+
   sensor_msgs::msg::Joy joy_cmd = joyParse(*msg);
   if (joy_cmd.axes.size() == 0 || joy_cmd.buttons.size() == 0)
   {
@@ -674,7 +902,8 @@ void NavigationBase::joyStickControl(const sensor_msgs::msg::Joy::ConstSharedPtr
     /* Halt mode */
     if (joy_cmd_time - force_landing_start_time_ > force_landing_to_halt_duration_ && getNaviState() > START_STATE)
     {
-      // if(!teleop_flag_) return; /* can not do the process if other processs are running */
+      // if(!teleop_flag_) return; /* can not do the process if other processs
+      // are running */
 
       RCLCPP_ERROR(NAV_LOGGER, "Joy Control: Halt!");
 
@@ -813,7 +1042,6 @@ void NavigationBase::joyStickControl(const sensor_msgs::msg::Joy::ConstSharedPtr
     local_frame_rot = KDL::Rotation::RPY(0, 0, yaw_angle) * teleop_local_frame_tf.M;
   }
 
-
   switch (xy_control_mode_)
   {
     case POS_CONTROL_MODE: {
@@ -868,6 +1096,10 @@ void NavigationBase::joyStickControl(const sensor_msgs::msg::Joy::ConstSharedPtr
 
 void NavigationBase::flightStatusAckCallback(std_msgs::msg::UInt8::ConstSharedPtr msg)
 {
+  // FlightStatus is the sole state authority when position control runs on
+  // the FC. The ACK remains available to the legacy ROS control path.
+  if (spinal_position_control_) return;
+
   if (msg->data == spinal_msgs::msg::FlightConfigCmd::ARM_OFF_CMD)
   {
     // Arming off
@@ -897,12 +1129,150 @@ void NavigationBase::flightStatusAckCallback(std_msgs::msg::UInt8::ConstSharedPt
   }
 }
 
+void NavigationBase::fcFlightStatusCallback(spinal_msgs::msg::FlightStatus::ConstSharedPtr msg)
+{
+  if (!msg) return;
+
+  spinal_ready_seen_ = true;
+  last_spinal_msg_time_ = node_->get_clock()->now().seconds();
+
+  if (msg->command_sequence != last_fc_command_sequence_)
+  {
+    if (msg->last_command_result == spinal_msgs::msg::FlightStatus::RESULT_ACCEPTED)
+    {
+      RCLCPP_INFO(NAV_LOGGER, "FC command accepted: %s from %s", flightCommandName(msg->last_command),
+                  commandSourceName(msg->last_command_source));
+    }
+    else
+    {
+      RCLCPP_WARN(NAV_LOGGER, "FC command rejected: %s from %s, result=%s (%u)", flightCommandName(msg->last_command),
+                  commandSourceName(msg->last_command_source), commandResultName(msg->last_command_result),
+                  msg->last_command_result);
+    }
+  }
+  last_fc_command_sequence_ = msg->command_sequence;
+
+  if (!fc_status_received_)
+  {
+    RCLCPP_INFO(NAV_LOGGER,
+                "FC status connected: arming=%s phase=%s mode=%s authority=%s "
+                "failsafe=%s, last_transition_reason=%s",
+                armingStateName(msg->arming_state), flightPhaseName(msg->flight_phase),
+                controlModeName(msg->control_mode), commandSourceName(msg->authority), failsafeName(msg->failsafe),
+                transitionReasonName(msg->transition_reason));
+    fc_status_received_ = true;
+  }
+  else
+  {
+    const bool flight_transition = msg->arming_state != last_fc_status_.arming_state ||
+                                   msg->flight_phase != last_fc_status_.flight_phase ||
+                                   msg->control_mode != last_fc_status_.control_mode ||
+                                   msg->failsafe != last_fc_status_.failsafe;
+    if (flight_transition)
+    {
+      const bool safety_transition = msg->failsafe != spinal_msgs::msg::FlightStatus::FAILSAFE_NONE;
+      if (safety_transition)
+      {
+        RCLCPP_WARN(NAV_LOGGER,
+                    "FC transition: arming %s -> %s, phase %s -> %s, mode %s "
+                    "-> %s, failsafe %s -> %s, reason=%s",
+                    armingStateName(last_fc_status_.arming_state), armingStateName(msg->arming_state),
+                    flightPhaseName(last_fc_status_.flight_phase), flightPhaseName(msg->flight_phase),
+                    controlModeName(last_fc_status_.control_mode), controlModeName(msg->control_mode),
+                    failsafeName(last_fc_status_.failsafe), failsafeName(msg->failsafe),
+                    transitionReasonName(msg->transition_reason));
+      }
+      else
+      {
+        RCLCPP_INFO(NAV_LOGGER,
+                    "FC transition: arming %s -> %s, phase %s -> %s, mode %s "
+                    "-> %s, failsafe %s -> %s, reason=%s",
+                    armingStateName(last_fc_status_.arming_state), armingStateName(msg->arming_state),
+                    flightPhaseName(last_fc_status_.flight_phase), flightPhaseName(msg->flight_phase),
+                    controlModeName(last_fc_status_.control_mode), controlModeName(msg->control_mode),
+                    failsafeName(last_fc_status_.failsafe), failsafeName(msg->failsafe),
+                    transitionReasonName(msg->transition_reason));
+      }
+    }
+
+    if (msg->authority != last_fc_status_.authority)
+    {
+      RCLCPP_INFO(NAV_LOGGER, "FC authority: %s -> %s", commandSourceName(last_fc_status_.authority),
+                  commandSourceName(msg->authority));
+    }
+
+    if (msg->health.requested_action != last_fc_status_.health.requested_action ||
+        msg->health.action_source != last_fc_status_.health.action_source ||
+        msg->health.action_reason_mask != last_fc_status_.health.action_reason_mask)
+    {
+      if (msg->health.requested_action == spinal_msgs::msg::HealthReport::ACTION_NONE)
+      {
+        RCLCPP_INFO(NAV_LOGGER, "FC health action cleared");
+      }
+      else
+      {
+        RCLCPP_WARN(NAV_LOGGER, "FC health action: %s, component=%s (%u), reason_mask=0x%08x",
+                    healthActionName(msg->health.requested_action), healthComponentName(msg->health.action_source),
+                    msg->health.action_source, msg->health.action_reason_mask);
+      }
+    }
+  }
+  last_fc_status_ = *msg;
+
+  if (!spinal_position_control_) return;
+
+  force_landing_flag_ = msg->failsafe == spinal_msgs::msg::FlightStatus::FAILSAFE_FORCE_LAND;
+
+  uint8_t mirrored_state = ARM_OFF_STATE;
+  if (msg->arming_state == spinal_msgs::msg::FlightStatus::ARMING_ARMED)
+  {
+    switch (msg->flight_phase)
+    {
+      case spinal_msgs::msg::FlightStatus::PHASE_LANDED:
+        mirrored_state = ARM_ON_STATE;
+        break;
+      case spinal_msgs::msg::FlightStatus::PHASE_TAKING_OFF:
+        mirrored_state = TAKEOFF_STATE;
+        break;
+      case spinal_msgs::msg::FlightStatus::PHASE_AIRBORNE:
+        mirrored_state = HOVER_STATE;
+        if (!estimator_->getFlyingFlag()) estimator_->setFlyingFlag(true);
+        break;
+      case spinal_msgs::msg::FlightStatus::PHASE_LANDING:
+        mirrored_state = LAND_STATE;
+        break;
+      default:
+        break;
+    }
+  }
+  else
+  {
+    if (estimator_->getFlyingFlag()) estimator_->setFlyingFlag(false);
+  }
+
+  if (mirrored_state != getNaviState())
+  {
+    RCLCPP_INFO(NAV_LOGGER, "Mirror FC flight state: %u -> %u (mode=%u, authority=%u, failsafe=%u)", getNaviState(),
+                mirrored_state, msg->control_mode, msg->authority, msg->failsafe);
+    setNaviState(mirrored_state);
+  }
+}
+
 void NavigationBase::motorArming()
 {
   if (!spinalReadyForArming())
   {
     RCLCPP_WARN_THROTTLE(NAV_LOGGER, *(node_->get_clock()), 1000,
                          "Spinal link is not ready yet. Ignore arming command.");
+    return;
+  }
+
+  if (spinal_position_control_)
+  {
+    spinal_msgs::msg::FlightConfigCmd flight_config_cmd;
+    flight_config_cmd.cmd = spinal_msgs::msg::FlightConfigCmd::ARM_ON_CMD;
+    flight_config_pub_->publish(flight_config_cmd);
+    RCLCPP_INFO(NAV_LOGGER, "Requested FC arm");
     return;
   }
 
@@ -919,7 +1289,9 @@ bool NavigationBase::prepareTakeoffTargets()
   const int altitude_status = estimator_->getBasePosStateStatus(State::Z, estimate_mode_);
   if (!altitude_status)
   {
-    RCLCPP_ERROR(NAV_LOGGER, "No correct sensor fusion for z(altitude), can not fly (estimate mode: %d, status: %d)",
+    RCLCPP_ERROR(NAV_LOGGER,
+                 "No correct sensor fusion for z(altitude), can not fly "
+                 "(estimate mode: %d, status: %d)",
                  estimate_mode_, altitude_status);
     return false;
   }
@@ -933,11 +1305,12 @@ bool NavigationBase::prepareTakeoffTargets()
       getParam<double>("outdoor_xy_convergent_thresh", xy_convergent_thresh_, 0.6);
       getParam<double>("outdoor_z_convergent_thresh", z_convergent_thresh_, 0.05);
 
-      RCLCPP_INFO_STREAM(NAV_LOGGER, "Update the navigation parameters for outdoor flight, takeoff height: "
-                                         << takeoff_height_
-                                         << "; outdoor_hover_convergent_duration: " << hover_convergent_duration_
-                                         << "; outdoor_xy_convergent_thresh: " << xy_convergent_thresh_
-                                         << "; outdoor_z_convergent_thresh: " << z_convergent_thresh_);
+      RCLCPP_INFO_STREAM(NAV_LOGGER,
+                         "Update the navigation parameters for outdoor flight, takeoff "
+                         "height: "
+                             << takeoff_height_ << "; outdoor_hover_convergent_duration: " << hover_convergent_duration_
+                             << "; outdoor_xy_convergent_thresh: " << xy_convergent_thresh_
+                             << "; outdoor_z_convergent_thresh: " << z_convergent_thresh_);
 
       break;
     }
@@ -975,6 +1348,15 @@ bool NavigationBase::spinalReadyForArming()
 
 void NavigationBase::startTakeoff()
 {
+  if (spinal_position_control_)
+  {
+    spinal_msgs::msg::FlightConfigCmd flight_config_cmd;
+    flight_config_cmd.cmd = spinal_msgs::msg::FlightConfigCmd::TAKEOFF_CMD;
+    flight_config_pub_->publish(flight_config_cmd);
+    RCLCPP_INFO(NAV_LOGGER, "Requested FC takeoff");
+    return;
+  }
+
   if (getNaviState() == TAKEOFF_STATE) return;
   if (getNaviState() != ARM_ON_STATE) return;
   if (!takeoff_prepared_ && !prepareTakeoffTargets())
@@ -1015,6 +1397,15 @@ void NavigationBase::startTakeoff()
 
 void NavigationBase::landCallback(std_msgs::msg::Empty::ConstSharedPtr msg)
 {
+  if (spinal_position_control_)
+  {
+    spinal_msgs::msg::FlightConfigCmd flight_config_cmd;
+    flight_config_cmd.cmd = spinal_msgs::msg::FlightConfigCmd::LAND_CMD;
+    flight_config_pub_->publish(flight_config_cmd);
+    RCLCPP_INFO(NAV_LOGGER, "Requested FC landing");
+    return;
+  }
+
   if (force_att_control_flag_) return;
 
   if (!teleop_flag_) return;
@@ -1025,6 +1416,15 @@ void NavigationBase::landCallback(std_msgs::msg::Empty::ConstSharedPtr msg)
 
 void NavigationBase::haltCallback(const std_msgs::msg::Empty::ConstSharedPtr msg)
 {
+  if (spinal_position_control_)
+  {
+    spinal_msgs::msg::FlightConfigCmd flight_config_cmd;
+    flight_config_cmd.cmd = spinal_msgs::msg::FlightConfigCmd::HALT_CMD;
+    flight_config_pub_->publish(flight_config_cmd);
+    RCLCPP_INFO(NAV_LOGGER, "Requested FC halt");
+    return;
+  }
+
   if (!teleop_flag_) return;
 
   spinal_msgs::msg::FlightConfigCmd flight_config_cmd;
@@ -1042,14 +1442,22 @@ void NavigationBase::forceLandingCallback(std_msgs::msg::Empty::ConstSharedPtr m
   spinal_msgs::msg::FlightConfigCmd flight_config_cmd;
   flight_config_cmd.cmd = spinal_msgs::msg::FlightConfigCmd::FORCE_LANDING_CMD;
   flight_config_pub_->publish(flight_config_cmd);
-  force_landing_flag_ = true;
+  if (!spinal_position_control_) force_landing_flag_ = true;
 
-  RCLCPP_INFO(NAV_LOGGER, "Force Landing state!");
+  RCLCPP_INFO(NAV_LOGGER, "Requested FC force landing");
 }
 
 void NavigationBase::rcTeleopCommandCallback(std_msgs::msg::UInt8::ConstSharedPtr msg)
 {
   if (!msg) return;
+
+  if (spinal_position_control_)
+  {
+    // CRSF commands have already been consumed by the FC supervisor. This
+    // topic is telemetry/debug only and must not issue a duplicate ROS command.
+    RCLCPP_DEBUG(NAV_LOGGER, "Observed direct FC RC command: %u", msg->data);
+    return;
+  }
 
   // Only navigation-owned commands cross ROS. ARM, FORCE_LANDING and HALT are
   // applied directly inside spinal; their flight_config_ack messages merely
@@ -1090,6 +1498,7 @@ void NavigationBase::stopTeleopCallback(std_msgs::msg::UInt8::ConstSharedPtr msg
 
 void NavigationBase::pathCallback(nav_msgs::msg::Path::ConstSharedPtr msg)
 {
+  if (spinal_position_control_) return;
   if (getNaviState() != HOVER_STATE) return;
 
   generateNewTrajectory(msg->poses);
@@ -1097,6 +1506,7 @@ void NavigationBase::pathCallback(nav_msgs::msg::Path::ConstSharedPtr msg)
 
 void NavigationBase::singleGoalCallback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
 {
+  if (spinal_position_control_) return;
   if (getNaviState() != HOVER_STATE) return;
 
   std::vector<geometry_msgs::msg::PoseStamped> path;
@@ -1107,6 +1517,7 @@ void NavigationBase::singleGoalCallback(const geometry_msgs::msg::PoseStamped::C
 
 void NavigationBase::simpleMoveBaseGoalCallback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
 {
+  if (spinal_position_control_) return;
   if (getNaviState() != HOVER_STATE) return;
 
   geometry_msgs::msg::PoseStamped target_pose = *msg;
@@ -1120,8 +1531,14 @@ void NavigationBase::batteryCheckCallback(const std_msgs::msg::Float32::ConstSha
 {
   if (std::isnan(msg->data))
   {
-    throw std::runtime_error("Voltage from spinal is NaN, please re-calibrate the voltage scale using /set_adc_scale.");
+    throw std::runtime_error(
+        "Voltage from spinal is NaN, please re-calibrate "
+        "the voltage scale using /set_adc_scale.");
   }
+
+  // In FC position-control mode, PowerHealth owns battery validation and the
+  // resulting safety action. Keep this callback only for legacy PC control.
+  if (spinal_position_control_) return;
 
   if (bat_cell_ == 0)
   {
@@ -1195,7 +1612,7 @@ void NavigationBase::motorPwmsCallback(const spinal_msgs::msg::Pwms::ConstShared
 
 void NavigationBase::reset()
 {
-  estimator_->setSensorFusionFlag(false);
+  if (!spinal_position_control_) estimator_->setSensorFusionFlag(false);
   estimator_->setFlyingFlag(false);
 
   trajectory_mode_ = false;
@@ -1261,7 +1678,8 @@ void NavigationBase::generateNewTrajectory(std::vector<geometry_msgs::msg::PoseS
   double yaw_angle = estimator_->getCogEuler(estimate_mode_).z();
   start_state.setYaw(yaw_angle);
   double last_target_omega_z = getTargetCogOmega().z();
-  start_state.w(2) = last_target_omega_z;  // Use target omega z instead of the real omega to avoid the noise
+  start_state.w(2) = last_target_omega_z;  // Use target omega z instead of the
+                                           // real omega to avoid the noise
   start_state.t = node_->get_clock()->now().seconds();
   states.push_back(start_state);
 
@@ -1284,15 +1702,18 @@ void NavigationBase::generateNewTrajectory(std::vector<geometry_msgs::msg::PoseS
     }
     else
     {
-      RCLCPP_WARN(NAV_LOGGER, "Target quaternion is invalid [%f, %f, %f, %f], reset as the start state", q.x(), q.y(),
-                  q.z(), q.w());
+      RCLCPP_WARN(NAV_LOGGER,
+                  "Target quaternion is invalid [%f, %f, %f, %f], reset as the "
+                  "start state",
+                  q.x(), q.y(), q.z(), q.w());
       state.q(start_state.q());
     }
 
     double dur = rclcpp::Time(pose.header.stamp).seconds() - start_state.t;
     if (dur < 0.01)
     {
-      // if the target time is older or closer to the current time, reset the duration by using an average velocity
+      // if the target time is older or closer to the current time, reset the
+      // duration by using an average velocity
       RCLCPP_INFO(NAV_LOGGER, "Recalculating duration...");
       double dur_tran = (state.p - start_state.p).norm() / trajectory_mean_vel_;
       double delta_yaw = state.getYaw() - start_state.getYaw();
@@ -1313,17 +1734,17 @@ void NavigationBase::generateNewTrajectory(std::vector<geometry_msgs::msg::PoseS
   agi::QuadState end_state = states.back();
   double dur = end_state.t - start_state.t;
   std::ostringstream trajectory_stream;
-  trajectory_stream << "Receive the new target pose of " << end_state.p.transpose() << " (yaw: " << end_state.getYaw()
-                    << ")" << " which starts with the last target pose: " << start_state.p.transpose()
-                    << " (yaw: " << start_state.getYaw() << ")" << " and target vel: " << start_state.v.transpose()
-                    << " (omega z: " << start_state.w(2) << ")" << " and target acc: " << start_state.a.transpose()
-                    << " and flight duration: " << dur;
+  trajectory_stream
+      << "Receive the new target pose of " << end_state.p.transpose() << " (yaw: " << end_state.getYaw() << ")"
+      << " which starts with the last target pose: " << start_state.p.transpose() << " (yaw: " << start_state.getYaw()
+      << ")"
+      << " and target vel: " << start_state.v.transpose() << " (omega z: " << start_state.w(2) << ")"
+      << " and target acc: " << start_state.a.transpose() << " and flight duration: " << dur;
   RCLCPP_INFO_STREAM(NAV_LOGGER, trajectory_stream.str());
 
   traj_generator_ptr_ = std::make_shared<agi::MinJerkTrajectory>(states);
 
   trajectory_mode_ = true;
-
 
   // Visualize
   double viz_dt = 0.02;
@@ -1401,12 +1822,13 @@ void NavigationBase::updatePoseFromTrajectory()
     return;
   }
 
-
   // Trajectory following mode
   // asynchronous with generateNewTrajectory
   if (traj_generator_ptr_.get() == nullptr)
   {
-    RCLCPP_WARN(NAV_LOGGER, "Trajectory: Terminate in trajectory mode since traj_generator_ptr_ is empty");
+    RCLCPP_WARN(NAV_LOGGER,
+                "Trajectory: Terminate in trajectory mode since "
+                "traj_generator_ptr_ is empty");
     return;
   }
 
@@ -1433,10 +1855,11 @@ void NavigationBase::updatePoseFromTrajectory()
   // Asynchronous with generateNewTrajectory
   if (traj_generator_ptr_.get() == nullptr)
   {
-    RCLCPP_WARN(NAV_LOGGER, "Trajectory: Terminate in trajectory mode since traj_generator_ptr_ is empty");
+    RCLCPP_WARN(NAV_LOGGER,
+                "Trajectory: Terminate in trajectory mode since "
+                "traj_generator_ptr_ is empty");
     return;
   }
-
 
   // Find the target pose at t from trajectory
   agi::QuadState target_state = traj_generator_ptr_->getState(t);
@@ -1454,7 +1877,8 @@ void NavigationBase::updatePoseFromTrajectory()
   KDL::Vector curr_pos = estimator_->getCogPos(estimate_mode_);
   double yaw_angle = estimator_->getCogEuler(estimate_mode_).z();
   RCLCPP_INFO_THROTTLE(NAV_LOGGER, *(node_->get_clock()), 500,
-                       "Trajectory mode, target pos&yaw: [%f, %f, %f, %f], curr pos&yaw: [%f, %f, %f, %f]",
+                       "Trajectory mode, target pos&yaw: [%f, %f, %f, %f], "
+                       "curr pos&yaw: [%f, %f, %f, %f]",
                        target_state.p(0), target_state.p(1), target_state.p(2), target_yaw, curr_pos.x(), curr_pos.y(),
                        curr_pos.z(), yaw_angle);
 }
@@ -1511,4 +1935,4 @@ void NavigationBase::gpsWaypointTracking()
   gps_waypoint_time_ = now_time;
 #endif
 }
-}
+}  // namespace aerial_robot_navigation
