@@ -31,6 +31,8 @@ _ARGS = [
     ("headless",            "true",             "Run without GUI", ["true", "false"]),
     ("sim",                 "false",            "Launch Gazebo simulation", ["true", "false"]),
     ("sim_estimation_mode", "4",                "Simulation estimate mode: 0=PC LIO, 1=PC mocap EKF, 2=PC mocap direct, 3=spinal LIO ESKF, 4=spinal mocap ESKF, 5=spinal mocap direct", ["0", "1", "2", "3", "4", "5"]),
+    ("simulate_crsf",      "true",              "Start a pseudo-terminal CRSF receiver in Gazebo", ["true", "false"]),
+    ("crsf_sim_device",    "/tmp/spinal_crsf_sim", "Pseudo-terminal symlink for simulated CRSF input"),
     ("launch_spinal",       "true",             "Launch micro-ROS Agent for spinal on real machine", ["true", "false"]),
     ("launch_spinal_bridge", "true",            "Relay root spinal topics to/from robot namespace", ["true", "false"]),
     ("spinal_dev",          "/dev/flight_controller", "Serial device for spinal micro-ROS Agent"),
@@ -90,6 +92,8 @@ def generate_launch_description():
     headless = LaunchConfiguration("headless")
     sim = LaunchConfiguration("sim")
     sim_estimation_mode = LaunchConfiguration("sim_estimation_mode")
+    simulate_crsf = LaunchConfiguration("simulate_crsf")
+    crsf_sim_device = LaunchConfiguration("crsf_sim_device")
     launch_spinal = LaunchConfiguration("launch_spinal")
     launch_spinal_bridge = LaunchConfiguration("launch_spinal_bridge")
     spinal_dev = LaunchConfiguration("spinal_dev")
@@ -341,6 +345,8 @@ def generate_launch_description():
             "robot_ns": robot_ns,
             "headless": headless,
             "sim_param_path": sim_param_path,
+            "simulate_crsf": simulate_crsf,
+            "crsf_sim_device": crsf_sim_device,
             "spawn_x": spawn_x,
             "spawn_y": spawn_y,
             "spawn_z": spawn_z,
