@@ -43,6 +43,8 @@ _ARGS = [
         "MESA_GLSL_VERSION_OVERRIDE for Gazebo; empty leaves it unset",
     ),
     ("sim_param_path", "", "Path to YAML file with simulation parameters"),
+    ("simulate_crsf", "true", "Start the pseudo-terminal CRSF receiver", ["true", "false"]),
+    ("crsf_sim_device", "/tmp/spinal_crsf_sim", "Pseudo-terminal symlink used by the simulated CRSF receiver"),
     ("spawn_x", "0.0", "Gazebo spawn X position [m] (sim only)"),
     ("spawn_y", "0.0", "Gazebo spawn Y position [m] (sim only)"),
     ("spawn_z", "0.5", "Gazebo spawn Z position [m] (sim only)"),
@@ -69,6 +71,8 @@ def generate_launch_description():
     mesa_gl_version_override = LaunchConfiguration("mesa_gl_version_override")
     mesa_glsl_version_override = LaunchConfiguration("mesa_glsl_version_override")
     sim_param_path = LaunchConfiguration("sim_param_path")
+    simulate_crsf = LaunchConfiguration("simulate_crsf")
+    crsf_sim_device = LaunchConfiguration("crsf_sim_device")
     spawn_x = LaunchConfiguration("spawn_x")
     spawn_y = LaunchConfiguration("spawn_y")
     spawn_z = LaunchConfiguration("spawn_z")
@@ -193,6 +197,16 @@ def generate_launch_description():
         parameters=[sim_param_path],
     )
 
+    crsf_simulator = Node(
+        package="spinal",
+        executable="crsf_simulator.py",
+        name="crsf_simulator",
+        namespace=robot_ns,
+        parameters=[{"device_link": crsf_sim_device}],
+        condition=IfCondition(simulate_crsf),
+        output="screen",
+    )
+
     clock_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -254,6 +268,7 @@ def generate_launch_description():
     ld.add_action(set_fastrtps_profile)
     ld.add_action(shutdown_handler)
     ld.add_action(sim_param_server)
+    ld.add_action(crsf_simulator)
     ld.add_action(ign_server)
     ld.add_action(ign_client)
     ld.add_action(clock_bridge)

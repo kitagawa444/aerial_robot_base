@@ -15,8 +15,8 @@
   ros__parameters:
     imu: "spinal_imu"
     mag: "spinal_mag"
-    # Use the persistent XIAO identity: ttyACM numbering changes with USB attach order.
-    rc_serial_port: "/dev/serial/by-id/usb-Seeed_Studio_Seeed_Studio_XIAO_RP2040_4250305539333105-if00"
+    # Gazebo receives byte-identical CRSF frames from spinal/crsf_simulator.py.
+    rc_serial_port: "/tmp/spinal_crsf_sim"
     rc_serial_baud: 420000
     rotor_joints:
       - rotor1
