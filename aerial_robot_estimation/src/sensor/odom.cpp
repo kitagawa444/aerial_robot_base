@@ -150,7 +150,13 @@ void Odometry::preProcessState()
   /* Throttle message */
   if (throttle_rate_ > 0)
   {
-    if (time_stamp_ - prev_time_stamp_ < rclcpp::Duration::from_seconds(1 / throttle_rate_))
+    // A timestamp constructed from a message uses RCL_ROS_TIME, while the
+    // negative sentinel in SensorBase is constructed with RCL_SYSTEM_TIME.
+    // Do not subtract them on the first sample (or after a clock-source
+    // change); the callback will synchronize prev_time_stamp_ afterwards.
+    if (prev_time_stamp_.nanoseconds() >= 0 &&
+        time_stamp_.get_clock_type() == prev_time_stamp_.get_clock_type() &&
+        time_stamp_ - prev_time_stamp_ < rclcpp::Duration::from_seconds(1 / throttle_rate_))
     {
       return;
     }
