@@ -79,6 +79,14 @@ def generate_launch_description():
     rviz_init_path = LaunchConfiguration("rviz_init_path")
     robot_description = LaunchConfiguration("robot_description")
 
+    # TF frame ids are not affected by a ROS node namespace.  Normalize the
+    # robot namespace separately and use it as the frame prefix for every
+    # robot-owned frame.
+    tf_prefix = PythonExpression(["'", robot_ns, "'.strip('/')"])
+    robot_state_publisher_frame_prefix = PythonExpression(
+        ["('", robot_ns, "'.strip('/') + '/') if '", robot_ns, "'.strip('/') else ''"]
+    )
+
     # Guard against RViz/Qt crashes in headless environments (containers, SSH without X11/Wayland).
     # We consider a GUI available if:
     # - Wayland: WAYLAND_DISPLAY is set, OR
@@ -115,7 +123,7 @@ def generate_launch_description():
         name="robot_state_publisher",
         namespace=robot_ns,
         parameters=[
-            {"tf_prefix": robot_ns, "use_sim_time": sim},
+            {"frame_prefix": robot_state_publisher_frame_prefix, "use_sim_time": sim},
             robot_description_param,
         ],
     )
@@ -126,7 +134,7 @@ def generate_launch_description():
         name="rotor_tf_publisher",
         namespace=robot_ns,
         condition=UnlessCondition(need_joint_states),
-        parameters=[{"tf_prefix": robot_ns, "use_sim_time": sim}, robot_description_param],
+        parameters=[{"tf_prefix": tf_prefix, "use_sim_time": sim}, robot_description_param],
     )
 
     joint_state_pub_node = Node(

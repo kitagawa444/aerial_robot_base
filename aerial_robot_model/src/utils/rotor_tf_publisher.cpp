@@ -56,10 +56,15 @@ public:
   {
     node_ = node;
     // Parameters
-    // node_->declare_parameter<string>("rotor_joint_name", "rotor");
-    // node_->declare_parameter<string>("tf_prefix", "");
+    node_->declare_parameter<string>("rotor_joint_name", "rotor");
+    node_->declare_parameter<string>("tf_prefix", "");
     node_->get_parameter("rotor_joint_name", rotor_joint_name_);
     node_->get_parameter("tf_prefix", tf_prefix_);
+
+    // Keep frame IDs relative and avoid doubled separators when this node is
+    // launched directly with a slash-delimited prefix.
+    while (!tf_prefix_.empty() && tf_prefix_.front() == '/') tf_prefix_.erase(0, 1);
+    while (!tf_prefix_.empty() && tf_prefix_.back() == '/') tf_prefix_.pop_back();
 
     std::string urdf_xml;
     node_->declare_parameter<std::string>("robot_description", "");

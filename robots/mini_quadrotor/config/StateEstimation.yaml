@@ -59,7 +59,7 @@
             time_sync: false
           odometry:
             estimate_mode: 1 # 1<<0
-            odom_sub: /Odometry_precede
+            odom_sub: Odometry_precede # Resolved inside the robot namespace
             sensor_frame: lidar_imu
             fusion_mode: 2 # ONLY_POS_MODE = 0, ONLY_VEL_MODE = 1, POS_VEL_MODE = 2
             local_vel_mode: false # FAST-LIO twist is expressed in the world frame

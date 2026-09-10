@@ -107,6 +107,8 @@ def generate_launch_description():
     robot_model_rviz = LaunchConfiguration("robot_model_rviz")
     debug_core = LaunchConfiguration("debug_core")
 
+    tf_prefix = PythonExpression(["'", robot_ns, "'.strip('/')"])
+
     active_estimation_mode = PythonExpression(
         ["int('", sim_estimation_mode, "') if '", sim, "' == 'true' else int('", estimation_mode, "')"]
     )
@@ -238,6 +240,7 @@ def generate_launch_description():
                     value_type=bool,
                 ),
                 "estimation.mode": active_estimation_mode,
+                "tf_prefix": tf_prefix,
                 "use_sim_time": sim,
             },
             robot_description_param,
@@ -399,6 +402,7 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
+            "robot_ns": robot_ns,
             "use_sim_time": sim,
             "rviz": "false",
         }.items(),

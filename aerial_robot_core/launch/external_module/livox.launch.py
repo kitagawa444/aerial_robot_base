@@ -10,6 +10,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 _ARGS = [
+    ("robot_ns", "", "Namespace for the Livox and FAST-LIO nodes and topics"),
     ("use_sim_time", "false", "Use the simulation clock", ["true", "false"]),
     ("use_livox_driver", "true", "Start the Livox MID360s driver", ["true", "false"]),
     ("config_file", "mid360.yaml", "FAST-LIO configuration filename"),
@@ -50,6 +51,7 @@ def generate_launch_description():
             PathJoinSubstitution([FindPackageShare("fast_lio"), "launch", "mapping.launch.py"])
         ),
         launch_arguments={
+            "robot_ns": LaunchConfiguration("robot_ns"),
             "use_sim_time": LaunchConfiguration("use_sim_time"),
             "use_livox_driver": LaunchConfiguration("use_livox_driver"),
             "config_path": config_path,

@@ -163,14 +163,14 @@ Visualization Manager:
         Inertia: false
         Mass: false
       Name: RobotModel
-      TF Prefix: ""
+      TF Prefix: mini_quadrotor
       Update Interval: 0
       Value: true
       Visual Enabled: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: root
+    Fixed Frame: world
     Frame Rate: 30
   Name: root
   Tools:
