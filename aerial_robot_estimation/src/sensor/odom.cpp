@@ -84,6 +84,23 @@ void Odometry::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     return;
   }
 
+  /*
+   * Throttle the whole callback, as the ROS1 VisualOdometry plugin did.
+   * Throttling in preProcessState() is too late: estimateProcess() would
+   * still fuse and publish the previous pose, and odomCallback() would move
+   * prev_time_stamp_ forward.  With a source faster than throttle_rate_ that
+   * can repeatedly correct the filter with stale data and prevent subsequent
+   * samples from ever passing the throttle check.
+   */
+  const rclcpp::Time msg_time(msg->header.stamp);
+  if (throttle_rate_ > 0 && prev_time_stamp_.nanoseconds() >= 0 &&
+      msg_time.get_clock_type() == prev_time_stamp_.get_clock_type() &&
+      msg_time >= prev_time_stamp_ &&
+      msg_time - prev_time_stamp_ < rclcpp::Duration::from_seconds(1.0 / throttle_rate_))
+  {
+    return;
+  }
+
   tf2::fromMsg(msg->pose.pose, sensor_pose_);
 
   sensor_twist_.vel = KDL::Vector(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z);
@@ -110,6 +127,10 @@ void Odometry::estimateProcess()
 
   /* Preprocess */
   preProcessState();
+
+  // Initialization may still be waiting for the IMU.  Do not publish or
+  // update filter health until a valid origin and initial state exist.
+  if (getStatus() != Status::ACTIVE) return;
 
   /* Do fusion */
   fuse();
@@ -147,21 +168,6 @@ bool Odometry::checkStatus()
 
 void Odometry::preProcessState()
 {
-  /* Throttle message */
-  if (throttle_rate_ > 0)
-  {
-    // A timestamp constructed from a message uses RCL_ROS_TIME, while the
-    // negative sentinel in SensorBase is constructed with RCL_SYSTEM_TIME.
-    // Do not subtract them on the first sample (or after a clock-source
-    // change); the callback will synchronize prev_time_stamp_ afterwards.
-    if (prev_time_stamp_.nanoseconds() >= 0 &&
-        time_stamp_.get_clock_type() == prev_time_stamp_.get_clock_type() &&
-        time_stamp_ - prev_time_stamp_ < rclcpp::Duration::from_seconds(1 / throttle_rate_))
-    {
-      return;
-    }
-  }
-
   /* Timestamp for fusion (consider the delay for timestamp) */
   ref_time_stamp_ = time_stamp_.seconds() + delay_;
 
@@ -177,15 +183,21 @@ void Odometry::preProcessState()
 
     if (!calcuateOriginOffset()) return;
 
+    // Initialize the position filters from the newly aligned pose, not from
+    // base_pose_'s constructor value (the origin).
+    calculateBasePose();
+    calculateBaseVelocity();
     activateFuser();
     setStatus(Status::ACTIVE);
   }
+  else
+  {
+    // Get baselink pose
+    calculateBasePose();
 
-  // Get baselink pose
-  calculateBasePose();
-
-  // Get baselink velocity
-  calculateBaseVelocity();
+    // Get baselink velocity
+    calculateBaseVelocity();
+  }
 
   // Debug print
   print();
@@ -221,11 +233,11 @@ bool Odometry::calcuateOriginOffset()
   }
   if (estimator_->getBasePosStateStatus(State::Y, EGOMOTION_ESTIMATE))
   {
-    base_pose_w.p.y(pos.x());
+    base_pose_w.p.y(pos.y());
   }
   if (estimator_->getBasePosStateStatus(State::Z, EGOMOTION_ESTIMATE))
   {
-    base_pose_w.p.z(pos.x());
+    base_pose_w.p.z(pos.z());
   }
 
   /* Set the init offset from world to the baselink of UAV if we know the ground truth */
