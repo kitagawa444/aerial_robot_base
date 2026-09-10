@@ -62,9 +62,9 @@
         clamp_gain: true
         lqi_mode: 4
 
-        roll_pitch_p: 15.0 # 20.0
+        roll_pitch_p: 20.0 # 20.0
         roll_pitch_i: 0.5
-        roll_pitch_d: 0.5 # 1.0 #0.15
+        roll_pitch_d: 0.15 # 1.0 #0.15
 
         yaw_p: 60.0
         yaw_i: 0.5
